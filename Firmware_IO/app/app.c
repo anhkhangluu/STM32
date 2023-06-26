@@ -944,8 +944,6 @@ static void app_Measurement(void)
 /*public function*/
 void app_Init(void)
 {
-    Serial.begin(57600);
-    Wire.begin();
     io_Init();
     lcd_Int();
     timer_Init();
