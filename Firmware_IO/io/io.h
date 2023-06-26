@@ -1,12 +1,15 @@
 #ifndef _IO_H_
 #define _IO_H_
 
-#define GET_IN0     (PIOC->PIO_PDSR & PIO_IFSR_P26)
-#define GET_IN1     (PIOC->PIO_PDSR & PIO_IFSR_P28)
-#define GET_IN2     (PIOB->PIO_PDSR & PIO_IFSR_P25)
+#include "main.h"
 
-#define GET_SENSOR0 (PIOC->PIO_PDSR & PIO_IFSR_P24)
-#define GET_SENSOR1 (PIOC->PIO_PDSR & PIO_IFSR_P25)
+
+#define GET_IN0     (PIOC->PIO_PDSR & PIO_IFSR_P26)// GPIO_EXTI
+#define GET_IN1     (PIOC->PIO_PDSR & PIO_IFSR_P28)// GPIO_EXTI
+#define GET_IN2     (PIOB->PIO_PDSR & PIO_IFSR_P25)// GPIO_EXTI
+
+#define GET_SENSOR0 (PIOC->PIO_PDSR & PIO_IFSR_P24)// GPIO_EXTI
+#define GET_SENSOR1 (PIOC->PIO_PDSR & PIO_IFSR_P25)// GPIO_EXTI
 
 void io_Init(void);
 button io_getButton(void);
