@@ -1,13 +1,12 @@
-#include <Wire.h>
+
 #include <math.h>
 #include <stdint.h>
 #include "..\common\definition.h"
 #include "..\common\structer.h"
-#include "..\rtc\rtc.h"
-#include "..\lcd\lcd.h"
-#include "..\screen\screen.h"
+#include "LCD.h"
+//#include "..\screen\screen.h"
 #include "..\io\io.h"
-#include "..\eeprom\eeprom.h"
+//#include "..\eeprom\eeprom.h"
 #include "..\timer\timer.h"
 #include "app.h"
 
@@ -20,7 +19,7 @@ static dataMeasure mdata =
 
 static Time mtime = 
 {
-  2022,05,21,06,00,00
+  2023,06,26,06,00,00
 };
 
 static button mbutton;
