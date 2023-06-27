@@ -73,7 +73,7 @@ typedef enum
 #pragma pack(1)
 typedef struct _Time 
 {
-    uint16_t year; /*0:99*/
+	uint8_t year; /*0:99*/
     uint8_t month; /*1:12*/
     uint8_t day; /*1:31*/
     uint8_t hour; /*0:23*/
@@ -119,7 +119,7 @@ typedef struct _button
 {
     uint8_t set;
     uint8_t reset;
-    uint8_t his;
+    uint8_t menu;
     uint8_t next;
     uint8_t prev;
 }button;

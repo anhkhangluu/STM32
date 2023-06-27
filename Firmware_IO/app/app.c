@@ -1,14 +1,14 @@
-#include <Wire.h>
+//#include <Wire.h>
 #include <math.h>
 #include <stdint.h>
 #include "..\common\definition.h"
 #include "..\common\structer.h"
 #include "..\rtc\rtc.h"
-#include "..\lcd\lcd.h"
-#include "..\screen\screen.h"
+#include "..\LCD\Inc\LCD.h"
+//		#include "..\screen\screen.h"
 #include "..\io\io.h"
-#include "..\eeprom\eeprom.h"
-#include "..\timer\timer.h"
+//#include "..\eeprom\eeprom.h"
+//#include "..\timer\timer.h"
 #include "app.h"
 
 #define TIME_WAIT 100
@@ -20,7 +20,7 @@ static dataMeasure mdata =
 
 static Time mtime = 
 {
-  2022,05,21,06,00,00
+  23,05,21,06,00,00
 };
 
 static button mbutton;
@@ -48,7 +48,7 @@ static void app_GetCurrentMeasureValue(void);
 static void app_TrigerOutputON(void);
 static void app_TrigerOutputOFF(void);
 
-
+////...////
 
 /*private function*/
 static void app_TrigerOutputOFF(void)

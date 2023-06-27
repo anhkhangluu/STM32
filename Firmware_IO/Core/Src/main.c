@@ -121,6 +121,21 @@ FRESULT FOR; //file operation result
 DWORD fre_clust;
 uint32_t totalSpace, freeSpace;
 /*-------------------------------------*/
+
+/*----------------app.c----------------*/
+static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
+
+static Time mtime = { 23, 05, 21, 06, 00, 00 };
+
+static button mbutton;
+static input minput;
+static sensor msensor;
+static output moutput;
+static ledStatus mledStatus;
+static MeasureValue mcalibValue;
+static MeasureValue mCurrentMeasureValue;
+static MeasureValue mmeasureValue;
+static setCalibValue msetCalibValue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -150,6 +165,22 @@ void Callback_IPConflict(void) {
 
 static void process_SD_Card(void);
 void W5500_init();
+
+/*---------------app.c------------*/
+static void app_SettingRtc(void);
+static void app_SettingData(void);
+static void app_GetEeprom(void);
+static void app_Measurement(void);
+static void app_SetCalibValue(void);
+static void app_GetCalibValue(void);
+static void app_CalculatorValue(CycleMeasure lcycleMeasure);
+static void app_HisValue(void);
+static void app_ClearAllOutput(void);
+static void app_GotoMainScreen(uint8_t option);
+static void app_SetCurrentMeasureValue(void);
+static void app_GetCurrentMeasureValue(void);
+static void app_TrigerOutputON(void);
+static void app_TrigerOutputOFF(void);
 
 /* USER CODE END PFP */
 
@@ -306,10 +337,10 @@ static void MX_RTC_Init(void) {
 	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
 		Error_Handler();
 	}
-	sDate.WeekDay = RTC_WEEKDAY_TUESDAY;
-	sDate.Month = RTC_MONTH_JUNE;
-	sDate.Date = 0x20;
-	sDate.Year = 0x23;
+	sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+	sDate.Month = RTC_MONTH_JANUARY;
+	sDate.Date = 0x1;
+	sDate.Year = 0x1;
 
 	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
 		Error_Handler();
@@ -596,59 +627,59 @@ static void MX_GPIO_Init(void) {
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOE,
-			GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7
+			GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | OUT3_Pin
 					| GPIO_PIN_8 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14
 					| GPIO_PIN_0 | GPIO_PIN_1, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(GPIOA, SPI1_NSS_Pin | GPIO_PIN_8, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, W5500_CS_Pin | LED3_Pin | LED4_Pin,
+			GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5 | GPIO_PIN_8 | GPIO_PIN_9,
-			GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5 | LED1_Pin | LED2_Pin, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB,
-	GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_8 | GPIO_PIN_9,
+			OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8 | GPIO_PIN_9,
 			GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);
 
 	/*Configure GPIO pins : PE2 PE4 PE5 PE6
-	 PE7 PE8 PE12 PE13
+	 OUT3_Pin PE8 PE12 PE13
 	 PE14 PE0 PE1 */
 	GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6
-			| GPIO_PIN_7 | GPIO_PIN_8 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14
+			| OUT3_Pin | GPIO_PIN_8 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14
 			| GPIO_PIN_0 | GPIO_PIN_1;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : SPI1_NSS_Pin PA8 */
-	GPIO_InitStruct.Pin = SPI1_NSS_Pin | GPIO_PIN_8;
+	/*Configure GPIO pins : W5500_CS_Pin LED3_Pin LED4_Pin */
+	GPIO_InitStruct.Pin = W5500_CS_Pin | LED3_Pin | LED4_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : PC4 PC6 PC7 */
-	GPIO_InitStruct.Pin = GPIO_PIN_4 | GPIO_PIN_6 | GPIO_PIN_7;
+	/*Configure GPIO pins : PC4 BT_SET_Pin BT_RESERVED_Pin */
+	GPIO_InitStruct.Pin = GPIO_PIN_4 | BT_SET_Pin | BT_RESERVED_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : PC5 PC8 PC9 */
-	GPIO_InitStruct.Pin = GPIO_PIN_5 | GPIO_PIN_8 | GPIO_PIN_9;
+	/*Configure GPIO pins : PC5 LED1_Pin LED2_Pin */
+	GPIO_InitStruct.Pin = GPIO_PIN_5 | LED1_Pin | LED2_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : PB0 PB1 PB2 PB8
+	/*Configure GPIO pins : OUT0_Pin OUT1_Pin OUT2_Pin PB8
 	 PB9 */
-	GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_8
+	GPIO_InitStruct.Pin = OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8
 			| GPIO_PIN_9;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -662,19 +693,19 @@ static void MX_GPIO_Init(void) {
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 	/*Configure GPIO pins : PD8 PD9 PD10 PD11
-	 PD12 PD13 PD14 PD15 */
+	 BT_PREV_Pin BT_NEXT_Pin BT_MENU_Pin BT_RESET_Pin */
 	GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11
-			| GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
+			| BT_PREV_Pin | BT_NEXT_Pin | BT_MENU_Pin | BT_RESET_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-	/*Configure GPIO pin : SPI2_NSS_Pin */
-	GPIO_InitStruct.Pin = SPI2_NSS_Pin;
+	/*Configure GPIO pin : SD_CS_Pin */
+	GPIO_InitStruct.Pin = SD_CS_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-	HAL_GPIO_Init(SPI2_NSS_GPIO_Port, &GPIO_InitStruct);
+	HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
 	/* USER CODE BEGIN MX_GPIO_Init_2 */
 	/* USER CODE END MX_GPIO_Init_2 */
