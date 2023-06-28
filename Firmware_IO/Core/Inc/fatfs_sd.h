@@ -35,9 +35,4 @@ DRESULT SD_disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
 
 #define SPI_TIMEOUT 100
 
-/*SPI chip select pin configuration*/
-
-#define	SD_CS_PORT			GPIOD
-#define SD_CS_PIN			GPIO_PIN_0
-
 #endif

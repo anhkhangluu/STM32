@@ -26,9 +26,9 @@
 
 #define DEBUG 1
 #if(DEBUG == 1)
-#define DBG(x...) {fprintf(stderr,"%s<%d> ",__FUNCTION__,__LINE__); fprintf(stderr,x);fflush(stderr);}
-#define WARN(x...) {fprintf(stderr,"(W) %s<%d> ",__FUNCTION__,__LINE__); fprintf(stderr,x);fflush(stderr);}
-#define ERR(x...) {fprintf(stderr,"(E) %s<%d> ",__FUNCTION__,__LINE__); fprintf(stderr,x);fflush(stderr);}
+//#define DBG(x...) {fprintf(stderr,"%s<%d> ",__FUNCTION__,__LINE__); fprintf(stderr,x);fflush(stderr);}
+//#define WARN(x...) {fprintf(stderr,"(W) %s<%d> ",__FUNCTION__,__LINE__); fprintf(stderr,x);fflush(stderr);}
+//#define ERR(x...) {fprintf(stderr,"(E) %s<%d> ",__FUNCTION__,__LINE__); fprintf(stderr,x);fflush(stderr);}
 #else
 #define DBG(x...) {}
 #define WARN(x...) {}

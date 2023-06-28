@@ -2,7 +2,7 @@
 #define FALSE 0
 #define bool BYTE
 
-#include "stm32f0xx_hal.h"
+//#include "stm32f0xx_hal.h"
 
 #include "diskio.h"
 #include "fatfs_sd.h"
@@ -20,14 +20,14 @@ static uint8_t PowerFlag = 0;				/* Power flag */
 /* slave select */
 static void SELECT(void)
 {
-	HAL_GPIO_WritePin(SD_CS_PORT, SD_CS_PIN, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);
 	HAL_Delay(1);
 }
 
 /* slave deselect */
 static void DESELECT(void)
 {
-	HAL_GPIO_WritePin(SD_CS_PORT, SD_CS_PIN, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_SET);
 	HAL_Delay(1);
 }
 
