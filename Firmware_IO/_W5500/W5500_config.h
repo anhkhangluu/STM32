@@ -16,5 +16,5 @@ uint8_t W5500_ReadByte(void);
 void W5500_WriteByte(uint8_t b);
 void W5500_ReadBuff(uint8_t *buff, uint16_t len);
 void W5500_WriteBuff(uint8_t *buff, uint16_t len);
-
+//void W5500_init();
 #endif /* INC_W5500_CONFIG_H_ */

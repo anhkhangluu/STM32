@@ -112,7 +112,7 @@ extern SPI_HandleTypeDef 	hspi2;
 #define HSPI_SDCARD		 	&hspi2
 
 extern RTC_HandleTypeDef 	hrtc;
-
+extern TIM_HandleTypeDef 	htim6;
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

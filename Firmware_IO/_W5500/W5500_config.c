@@ -6,6 +6,8 @@
  */
 #include "W5500_config.h"
 
+
+
 void W5500_Select() {
 	HAL_GPIO_WritePin(W5500_CS_GPIO_Port, W5500_CS_Pin, GPIO_PIN_RESET); //CS LOW
 }
@@ -30,3 +32,4 @@ void W5500_ReadBuff(uint8_t *buff, uint16_t len) {
 void W5500_WriteBuff(uint8_t *buff, uint16_t len) {
 	HAL_SPI_Transmit(HSPI_W5500, buff, len, HAL_MAX_DELAY);
 }
+

@@ -17,47 +17,29 @@
  */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "fatfs.h"
+#include "usb_device.h"
 
-#include <cmsis_gcc.h>
-#include <definition.h>
-#include <dhcp.h>
-#include <fatfs.h>
-#include <ff.h>
-#include <integer.h>
-#include <LCD.h>
-#include <main.h>
-#include <math.h>
-#include <mb.h>
-#include <mbutils.h>
-#include <port.h>
-#include <rtc.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stm32f072xb.h>
-#include <stm32f0xx.h>
-#include <stm32f0xx_hal_def.h>
-#include <stm32f0xx_hal_flash.h>
-#include <stm32f0xx_hal_gpio.h>
-#include <stm32f0xx_hal_rcc.h>
-#include <stm32f0xx_hal_rcc_ex.h>
-#include <stm32f0xx_hal_rtc.h>
-#include <stm32f0xx_hal_spi.h>
-#include <stm32f0xx_hal_tim.h>
-#include <stm32f0xx_hal_tim_ex.h>
-#include <stm32f0xx_hal_uart.h>
-#include <stm32f0xx_hal_uart_ex.h>
-#include <structer.h>
-#include <sys/_stdint.h>
-#include <timer.h>
-#include <usb_device.h>
-#include <w5500.h>
-#include <wizchip_conf.h>
-#include <W5500_config.h>
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "LCD.h"
 
-#include "../../io/io.h"
-#include "../../screen/screen.h"
+#include "fatfs_sd.h"
 
+//DHCP
+#include "socket.h"
+#include "wizchip_conf.h"
+#include "string.h"
+#include "stdio.h"
+#include "dhcp.h"
+#include "stdbool.h"
+#include "mb.h"
 
+#include "structer.h"
+#include "io.h"
+#include "screen.h"
+#include "time.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -115,6 +97,7 @@ SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart2;
@@ -170,6 +153,7 @@ static void MX_TIM3_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM7_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 #ifdef USART_DEBUG
 void send_uart(char *string, ...) {
@@ -204,7 +188,7 @@ static void app_GetCurrentMeasureValue(void);
 static void app_TrigerOutputON(void);
 static void app_TrigerOutputOFF(void);
 static optionScreen_e_t app_optionMenu(void);
-static void app_
+//static void app_
 
 /* USER CODE END PFP */
 
@@ -250,9 +234,10 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_RTC_Init();
   MX_TIM7_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
-	LCD_Init();
 
+  	  HAL_TIM_Base_Start(&htim6);//use for delay_us
 	HAL_TIM_Base_Start_IT(&htim7); //timer interrupt every 100us
 	HAL_TIM_Base_Start_IT(&htim1); //Start timer input capture
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
@@ -638,6 +623,44 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 47;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 65535;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
   * @brief TIM7 Initialization Function
   * @param None
   * @retval None
@@ -730,19 +753,25 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |OUT3_Pin|GPIO_PIN_8|GPIO_PIN_12|GPIO_PIN_13
-                          |GPIO_PIN_14|GPIO_PIN_0|GPIO_PIN_1, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|OUT3_Pin
+                          |GPIO_PIN_8|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
+                          |GPIO_PIN_0|GPIO_PIN_1, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, W5500_CS_Pin|LED3_Pin|LED4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5|LED1_Pin|LED2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, OUT0_Pin|OUT1_Pin|OUT2_Pin|GPIO_PIN_8
                           |GPIO_PIN_9, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, LED1_Pin|LED2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);
