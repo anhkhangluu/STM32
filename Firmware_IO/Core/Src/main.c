@@ -203,7 +203,8 @@ static void app_SetCurrentMeasureValue(void);
 static void app_GetCurrentMeasureValue(void);
 static void app_TrigerOutputON(void);
 static void app_TrigerOutputOFF(void);
-static void app_optionMenu(void);
+static optionScreen_e_t app_optionMenu(void);
+static void app_
 
 /* USER CODE END PFP */
 
@@ -219,7 +220,7 @@ static void app_optionMenu(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	optionScreen_e_t currentOption;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -286,20 +287,11 @@ int main(void)
 		{
 			while(_ON == mbutton.menu)
 				mbutton = io_getButton();
-			app_optionMenu();
+			currentOption = app_optionMenu();
 		}
 
-		if ((_ON == mbutton.next) && (_ON == mbutton.set)) {
-			do {
-				mbutton = io_getButton();
-			} while ((_ON == mbutton.next) && (_ON == mbutton.set));
-			app_SettingRtc();
-		}
-		if (_ON == mbutton.his) {
-			while (_ON == io_getButton().his)
-				;
-			app_HisValue();
-		}
+
+
 		if (_ON == mbutton.reset) {
 			mbutton.reset = _OFF;
 			timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB);
@@ -1896,24 +1888,44 @@ static void app_TrigerOutputON(void)
     io_setOutput(moutput);
 }
 
-static void app_optionMenu(void)
+static optionScreen_e_t app_optionMenu(void)
 {
 	optionScreen_e_t optionIndex = measurement1Setting;
-	LCD_Clear();
-	do
-	{
-		 mbutton = io_getButton();
-		 if(mbutton.next == _ON)
-		 {
-			 mbutton.next = _OFF;
-			 while(_ON == io_getButton().next);
-			 LCD_Clear();
-			 screen_OptionMenu(optionIndex);
-			 optionIndex++;
-		 }
+	uint8_t exit = 0;
 
-	}while(mbutton.set == _ON || mbutton.menu ==_ON);
+	do {
+		mbutton = io_getButton();
+		if (mbutton.next == _ON) {
+			while (_ON == io_getButton().next)
+				;
+			LCD_Clear();
+			screen_OptionMenu(optionIndex);
+			optionIndex++;
+		}
 
+		if (mbutton.prev == _ON) {
+			while (_ON == io_getButton().prev)
+				;
+			LCD_Clear();
+			optionIndex--;
+			screen_OptionMenu(optionIndex);
+		}
+
+		if (mbutton.set == _ON) {
+			while (_ON == io_getButton().set)
+				;
+			exit = 1;
+		}
+
+		if(mbutton.menu == _ON)
+		{
+			while (_ON == io_getButton().menu)
+				;
+			exit = 1;
+		}
+
+	} while (exit == 0);
+	return optionIndex;
 }
 /* USER CODE END 4 */
 
