@@ -15,11 +15,11 @@ typedef enum _optionScreen {
 	measurement1Setting,
 	measurement2Setting,
 	measurementHis,
-//	measurement1HisList,
-//	measurement2HisList,
 	VDLRZinput,
 	timeSetting,
-	maxNoneOption //use for out of range
+	maxNoneOption, //use for out of range
+	measurement1HisList,
+	measurement2HisList
 } optionScreen_e_t;
 
 void screen_DataMeasure(dataMeasure data, uint8_t setCalib);

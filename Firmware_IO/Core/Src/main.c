@@ -49,6 +49,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TIME_WAIT 100
+
 //#define USART_DEBUG
 #ifdef USART_DEBUG
 #include "stdio.h"
@@ -188,7 +190,7 @@ static void app_GetCurrentMeasureValue(void);
 static void app_TrigerOutputON(void);
 static void app_TrigerOutputOFF(void);
 static optionScreen_e_t app_optionMenu(void);
-//static void app_
+static void app_processOptionMenu (optionScreen_e_t optionMenu);
 
 /* USER CODE END PFP */
 
@@ -273,6 +275,9 @@ int main(void)
 			while(_ON == mbutton.menu)
 				mbutton = io_getButton();
 			currentOption = app_optionMenu();
+
+			app_processOptionMenu(currentOption);
+
 		}
 
 
@@ -1128,7 +1133,7 @@ static void app_SettingRtc(void) {
 	CycleTime cycle = SET_YEAR;
 	uint8_t exit = 0;
 	uint8_t tmp = 0;
-	screen_Clear();
+	LCD_Clear();
 	do {
 		/*set year*/
 		if (SET_YEAR == cycle) {
@@ -1137,13 +1142,15 @@ static void app_SettingRtc(void) {
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
 					tmp = (mtime.year >= 2000) ?
 							(mtime.year - 2000) : (byte) mtime.year;
 					tmp += 1;
 					if (99 < tmp)
 						tmp = 0;
 					mtime.year = tmp + 2000;
-					rtc_SetYear(mtime.year);
+					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_YEAR);
 					delay(TIME_WAIT);
 				}
@@ -1152,8 +1159,22 @@ static void app_SettingRtc(void) {
 					while (_ON == io_getButton().next)
 						;
 				}
-				if (_ON == mbutton.reset) {
-					while (_ON == io_getButton().reset)
+				if(_ON == mbutton.prev)
+				{
+					while (_ON == io_getButton().prev)
+						;
+					if (0 == tmp)
+						tmp = 99;
+					else
+						tmp--;
+					mtime.year = tmp + 2000;
+					rtc_SetDateTime(mtime);
+					screen_setDateTime(mtime, SET_YEAR);
+					delay(TIME_WAIT);
+				}
+
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
 						;
 					exit = 1;
 					break;
@@ -1167,10 +1188,13 @@ static void app_SettingRtc(void) {
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
+
 					mtime.month += 1;
 					if (12 < mtime.month)
 						mtime.month = 1;
-					rtc_SetMonth(mtime.month);
+					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MONTH);
 					delay(TIME_WAIT);
 				}
@@ -1179,8 +1203,25 @@ static void app_SettingRtc(void) {
 					while (_ON == io_getButton().next)
 						;
 				}
+				if (_ON == mbutton.prev) {
+					while (_ON == io_getButton().prev)
+						;
+
+					if (1 == mtime.month)
+						mtime.month = 12;
+					else
+						mtime.month -= 1;
+					rtc_SetDateTime(mtime);
+					screen_setDateTime(mtime, SET_MONTH);
+					delay(TIME_WAIT);
+				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
+						;
+					cycle = SET_YEAR;
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
 						;
 					exit = 1;
 					break;
@@ -1193,11 +1234,13 @@ static void app_SettingRtc(void) {
 			screen_setDateTime(mtime, SET_DAY);
 			do {
 				mbutton = io_getButton();
-				if (1U == mbutton.set) {
+				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
 					mtime.day += 1;
 					if (31 < mtime.day)
 						mtime.day = 1;
-					rtc_SetDay(mtime.day);
+					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_DAY);
 					delay(TIME_WAIT);
 				}
@@ -1206,8 +1249,23 @@ static void app_SettingRtc(void) {
 					while (_ON == io_getButton().next)
 						;
 				}
+				if (_ON == mbutton.prev) {
+					while (_ON == io_getButton().prev)
+						;
+					mtime.day -= 1;
+					if (0 == mtime.day)
+						mtime.day = 31;
+					rtc_SetDateTime(mtime);
+					screen_setDateTime(mtime, SET_DAY);
+					delay(TIME_WAIT);
+				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
+						;
+					cycle = SET_MONTH;
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
 						;
 					exit = 1;
 					break;
@@ -1221,11 +1279,12 @@ static void app_SettingRtc(void) {
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
 					mtime.hour += 1;
-					if (59 < mtime.hour)
-						mtime.hour = 1;
-					rtc_SetHour(mtime.hour);
-					rtc_SetSecond(0);
+					if (23 < mtime.hour)
+						mtime.hour = 0;
+					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_HOUR);
 					delay(TIME_WAIT);
 				}
@@ -1234,8 +1293,25 @@ static void app_SettingRtc(void) {
 					while (_ON == io_getButton().next)
 						;
 				}
+
+				if (_ON == mbutton.prev) {
+					while (_ON == io_getButton().prev)
+						;
+					if (0 == mtime.hour)
+						mtime.hour = 23;
+					else
+						mtime.hour -= 1;
+					rtc_SetDateTime(mtime);
+					screen_setDateTime(mtime, SET_HOUR);
+					delay(TIME_WAIT);
+				}
 				if (_ON == mbutton.reset) {
-					while (0U == io_getButton().reset)
+					while (_ON == io_getButton().reset)
+						;
+					cycle = SET_DAY;
+				}
+				if (_ON == mbutton.menu) {
+					while (_OFF == io_getButton().menu)
 						;
 					exit = 1;
 					break;
@@ -1249,21 +1325,35 @@ static void app_SettingRtc(void) {
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
 					mtime.minute += 1;
 					if (59 < mtime.minute)
 						mtime.minute = 1;
-					rtc_SetMinute(mtime.minute);
-					rtc_SetSecond(0);
+					mtime.second = 0;
+					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MINUTE);
 					delay(TIME_WAIT);
 				}
-				if (_ON == mbutton.next) {
-					cycle = SET_YEAR;
+				if (_ON == mbutton.reset) {
+					cycle = SET_HOUR;
 					while (_ON == io_getButton().next)
 						;
 				}
-				if (_ON == mbutton.reset) {
-					while (_ON == io_getButton().reset)
+				if (_ON == mbutton.prev) {
+					while (_ON == io_getButton().prev)
+						;
+					if (0 == mtime.minute)
+						mtime.minute = 59;
+					else
+						mtime.minute -= 1;
+					mtime.second = 0;
+					rtc_SetDateTime(mtime);
+					screen_setDateTime(mtime, SET_MINUTE);
+					delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
 						;
 					exit = 1;
 					break;
@@ -1271,6 +1361,7 @@ static void app_SettingRtc(void) {
 			} while (SET_MINUTE == cycle);
 		}
 	} while (0 == exit);
+
 	if (CALIBSET == msetCalibValue) {
 		app_GotoMainScreen(CALIBSET);
 	} else {
@@ -1921,29 +2012,55 @@ static optionScreen_e_t app_optionMenu(void)
 {
 	optionScreen_e_t optionIndex = measurement1Setting;
 	uint8_t exit = 0;
-
+	uint8_t inMeasHis = 0;//flag for measurement screen history
 	do {
 		mbutton = io_getButton();
 		if (mbutton.next == _ON) {
 			while (_ON == io_getButton().next)
 				;
-			LCD_Clear();
+
+			if(inMeasHis)
+			{
+				optionIndex = measurement2HisList;
+			}
+			else
+			{
+				optionIndex++;
+			}
 			screen_OptionMenu(optionIndex);
-			optionIndex++;
+			LCD_Clear();
 		}
 
 		if (mbutton.prev == _ON) {
 			while (_ON == io_getButton().prev)
 				;
+			if(inMeasHis)
+			{
+				optionIndex = measurement1HisList;
+			}
+			else
+			{
+				optionIndex--;
+			}
 			LCD_Clear();
-			optionIndex--;
 			screen_OptionMenu(optionIndex);
 		}
 
 		if (mbutton.set == _ON) {
 			while (_ON == io_getButton().set)
 				;
-			exit = 1;
+			if( optionIndex == measurementHis)
+			{
+				LCD_Clear();
+				optionIndex = measurement1HisList;
+				screen_OptionMenu(optionIndex);
+				inMeasHis = 1;
+			}
+			else
+			{
+				exit = 1;
+			}
+
 		}
 
 		if(mbutton.menu == _ON)
@@ -1954,7 +2071,35 @@ static optionScreen_e_t app_optionMenu(void)
 		}
 
 	} while (exit == 0);
+
 	return optionIndex;
+}
+
+static void app_processOptionMenu (optionScreen_e_t optionMenu)
+{
+	switch (optionMenu) {
+		case measurement1Setting:
+			//main screen 1
+			break;
+		case measurement2Setting:
+			//main screen 2
+			break;
+
+		case measurement1HisList:
+			//history meas 1
+			break;
+		case measurement2HisList:
+			//history meas 2
+			break;
+		case VDLRZinput:
+
+			break;
+		case timeSetting:
+			app_SettingRtc();
+			break;
+		default:
+			break;
+		}
 }
 /* USER CODE END 4 */
 

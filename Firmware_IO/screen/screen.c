@@ -130,16 +130,20 @@ void screen_setDateTime(Time time, CycleTime cycle) {
 				time.hour, time.minute);
 		break;
 	}
-	LCD_Puts(0, 0, "  TIME SETTING  ");
+//	LCD_Puts(0, 0, "  TIME SETTING  ");
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 }
 
 void screen_OptionMenu(optionScreen_e_t optionIndex) {
-	if (optionIndex <= minNoneOption)
+	if (optionIndex == measurement1HisList || optionIndex == measurement2HisList)
+		;
+	else if (optionIndex <= minNoneOption)
 		optionIndex = measurement1Setting;
 	else if	(optionIndex >= maxNoneOption)
 		optionIndex = timeSetting;
+	else
+		;
 
 	switch (optionIndex) {
 	case measurement1Setting:
@@ -154,14 +158,14 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 		sprintf(screenBuffer.line2,  "MEASUREMENT");
 		sprintf(screenBuffer.line3,  "HISTORY LIST");
 		break;
-//	case measurement1HisList:
-//		sprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 1");
-//		sprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
-//		break;
-//	case measurement2HisList:
-//		sprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 2");
-//		sprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
-//		break;
+	case measurement1HisList:
+		sprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 1");
+		sprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
+		break;
+	case measurement2HisList:
+		sprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 2");
+		sprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
+		break;
 	case VDLRZinput:
 		sprintf(screenBuffer.line2, "V;D;L;R;Z INPUT");
 		sprintf(screenBuffer.line3,  "%s", "");
