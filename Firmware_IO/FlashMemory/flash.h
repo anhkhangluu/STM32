@@ -1,19 +1,24 @@
 #ifndef INC_EEPROM_EMULATE_H_
 #define INC_EEPROM_EMULATE_H_
 
-#include "main.h"
+#include "stm32f0xx_hal.h"
 #include "structer.h"
-#define FLASH_SECTOR_ADDR		((uint32_t)0x081C0000)
 
-#define FLASH_ADDRESS                 ((uint32_t)FLASH_SECTOR_ADDR+EEP_ADDRESS)
-#define FLASH_CURRENT_INDEX_ADDRESS   ((uint32_t)FLASH_SECTOR_ADDR+EEP_CURRENT_INDEX_ADDRESS  )
-#define FLASH_CALIB_ADDRESS           ((uint32_t)FLASH_SECTOR_ADDR+EEP_CALIB_ADDRESS )
-#define FLASH_CURREN_VALUE_ADDRESS    ((uint32_t)FLASH_SECTOR_ADDR+EEP_CURREN_VALUE_ADDRESS )
-#define FLASH_START_ADDRESS           ((uint32_t)FLASH_SECTOR_ADDR+EEP_START_ADDRESS )//(EEP_CURREN_VALUE_ADDRESS + sizeof(MeasureValue))
-//#define FLASH_MAX_DATA                10U
 
-uint8_t FLASH_ReadCurrentIndex(void);
-int FLASH_ReadDataMeasure(uint8_t index, dataMeasure *data);
-//void Flashwrite
+#define PAGE_NUM_ADDR(pageNum)	((uint32_t )FLASH_BASE + PAGESIZE * pageNum)
 
+#define MEASUREMENT_1_START_ADDR		((uint32_t )0x0801F000)
+#define MEASUREMENT_2_START_ADDR		((uint32_t )0x0801F800)
+
+#define FLASH_PAGE_CURRENT_INDEX		0		//
+#define FLASH_PAGE_CURRENT_DATA			2
+#define FLASH_PAGE_DATA_CALIB			22
+#define FLASH_PAGE_HISTORY				42
+
+
+void FLASH_WriteHistoryDataMeasure(dataMeasure *data, uint8_t measurementIndex, uint8_t hisIndex);
+uint16_t FLASH_ReadCurrentIndex(uint8_t measurementIndex);
+void FLASH_WriteCurrentIndex(uint16_t index, uint8_t measurementIndex);
+void FLASH_WriteDataCurrent(MeasureValue *data, uint8_t measurementIndex);
+void FLASH_WriteDataCalib(MeasureValue *data, uint8_t measurementIndex);
 #endif /* INC_EEPROM_EMULATE_H_ */

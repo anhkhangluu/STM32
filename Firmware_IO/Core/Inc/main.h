@@ -75,6 +75,14 @@ void Error_Handler(void);
 #define OUT2_GPIO_Port GPIOB
 #define OUT3_Pin GPIO_PIN_7
 #define OUT3_GPIO_Port GPIOE
+#define SENSOR0_Pin GPIO_PIN_9
+#define SENSOR0_GPIO_Port GPIOE
+#define SENSOR1_Pin GPIO_PIN_11
+#define SENSOR1_GPIO_Port GPIOE
+#define IN1_Pin GPIO_PIN_10
+#define IN1_GPIO_Port GPIOD
+#define IN0_Pin GPIO_PIN_11
+#define IN0_GPIO_Port GPIOD
 #define BT_PREV_Pin GPIO_PIN_12
 #define BT_PREV_GPIO_Port GPIOD
 #define BT_NEXT_Pin GPIO_PIN_13

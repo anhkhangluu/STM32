@@ -2,9 +2,10 @@
 #include "..\common\definition.h"
 #include "io.h"
 
-//// check define main.h
-static int SENSOR0 =  6; //PC24
-static int SENSOR1 =  5; //PC25
+////// check define main.h
+//static int SENSOR0 =  6; //PC24
+//static int SENSOR1 =  5; //PC25
+
 
 
 static void io_TestOutput(void);

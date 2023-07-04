@@ -35,11 +35,15 @@
 #include "dhcp.h"
 #include "stdbool.h"
 #include "mb.h"
+#include "W5500_config.h"
 
 #include "structer.h"
 #include "io.h"
 #include "screen.h"
-#include "time.h"
+#include "timer.h"
+#include "math.h"
+
+#include "flash.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,7 +101,6 @@ RTC_HandleTypeDef hrtc;
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 
-TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
@@ -150,12 +153,11 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_SPI2_Init(void);
-static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_RTC_Init(void);
-static void MX_TIM7_Init(void);
 static void MX_TIM6_Init(void);
+static void MX_TIM7_Init(void);
 /* USER CODE BEGIN PFP */
 #ifdef USART_DEBUG
 void send_uart(char *string, ...) {
@@ -229,21 +231,20 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
-  MX_TIM1_Init();
   MX_TIM3_Init();
   MX_USART2_UART_Init();
   MX_FATFS_Init();
   MX_USB_DEVICE_Init();
   MX_RTC_Init();
-  MX_TIM7_Init();
   MX_TIM6_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
 
   	  HAL_TIM_Base_Start(&htim6);//use for delay_us
 	HAL_TIM_Base_Start_IT(&htim7); //timer interrupt every 100us
-	HAL_TIM_Base_Start_IT(&htim1); //Start timer input capture
-	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
-	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2);
+//	HAL_TIM_Base_Start_IT(&htim1); //Start timer input capture
+//	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
+//	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2);
 
 	LCD_Init();
 	process_SD_Card();
@@ -506,69 +507,6 @@ static void MX_SPI2_Init(void)
 }
 
 /**
-  * @brief TIM1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM1_Init(void)
-{
-
-  /* USER CODE BEGIN TIM1_Init 0 */
-
-  /* USER CODE END TIM1_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_IC_InitTypeDef sConfigIC = {0};
-
-  /* USER CODE BEGIN TIM1_Init 1 */
-
-  /* USER CODE END TIM1_Init 1 */
-  htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 48000;
-  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 65535;
-  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_IC_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
-  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
-  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
-  sConfigIC.ICFilter = 0;
-  if (HAL_TIM_IC_ConfigChannel(&htim1, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_IC_ConfigChannel(&htim1, &sConfigIC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM1_Init 2 */
-
-  /* USER CODE END TIM1_Init 2 */
-
-}
-
-/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -683,9 +621,9 @@ static void MX_TIM7_Init(void)
 
   /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 99;
+  htim7.Init.Prescaler = 47;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 48;
+  htim7.Init.Period = 100-1;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
@@ -821,18 +759,30 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : SENSOR0_Pin SENSOR1_Pin */
+  GPIO_InitStruct.Pin = SENSOR0_Pin|SENSOR1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PB12 PB13 PB14 PB15 */
   GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD8 PD9 PD10 PD11
-                           BT_PREV_Pin BT_NEXT_Pin BT_MENU_Pin BT_RESET_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |BT_PREV_Pin|BT_NEXT_Pin|BT_MENU_Pin|BT_RESET_Pin;
+  /*Configure GPIO pins : PD8 PD9 BT_PREV_Pin BT_NEXT_Pin
+                           BT_MENU_Pin BT_RESET_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|BT_PREV_Pin|BT_NEXT_Pin
+                          |BT_MENU_Pin|BT_RESET_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : IN1_Pin IN0_Pin */
+  GPIO_InitStruct.Pin = IN1_Pin|IN0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SD_CS_Pin */
@@ -1105,13 +1055,6 @@ static void process_SD_Card(void) {
 
 }
 
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-	//this function will reach if have a rising edge appear on tim1
-	if (htim1.Channel == HAL_TIM_ACTIVE_CHANNEL_1
-			|| htim1.Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
-
-	}
-}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 	if (htim == &htim7) {
@@ -1144,8 +1087,7 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					tmp = (mtime.year >= 2000) ?
-							(mtime.year - 2000) : (byte) mtime.year;
+					tmp = (mtime.year >= 2000) ?(mtime.year - 2000) : (byte) mtime.year;
 					tmp += 1;
 					if (99 < tmp)
 						tmp = 0;
@@ -1405,7 +1347,7 @@ static void app_Measurement(void)
             msensor = io_getSensor();
         }
         /********************************************## 1 ##*******************************************/
-        /*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho X10 cho phép quá trình bắt đầu*/
+        /*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
         if((STOP == cycleMeasure) && (_ON == minput.in0)) // X10=ON
         {
             app_ClearAllOutput();
@@ -1432,7 +1374,6 @@ static void app_Measurement(void)
                 io_setOutput(moutput);
                 msensor.s0 = _OFF;
                 msensor.s1 = _OFF;
-                getInput = GET_SENSOR;
                 cycleMeasure = WAITMEASUREZ;
 //                DBG("SENSOR OK\n");
             }
@@ -2101,6 +2042,75 @@ static void app_processOptionMenu (optionScreen_e_t optionMenu)
 			break;
 		}
 }
+
+static void app_HisValue(uint8_t measureIndex)
+{
+    uint64_t index = FLASH_ReadCurrentIndex();
+    uint8_t exit = 0;
+    dataMeasure ldata;
+    uint8_t u8_Led3 = mledStatus.led3;
+
+    LCD_Clear();
+    ldata = FLASH_ReadDataMeasure(PAGE_NUM_ADDR(index));
+    screen_DataMeasure(ldata, CALIBSET, measureIndex);
+    do
+    {
+        mbutton = io_getButton();
+        if(TIME_RUN != timer_Status(TIMER_CLEARSENSOR))
+        {
+            timer_Start(TIMER_CLEARSENSOR,10000);
+            mledStatus.led3 ^=0x01;
+            io_setLedStatus(mledStatus);
+        }
+        if(_ON == mbutton.next)
+        {
+            mbutton.next = _OFF;
+            while(_ON == io_getButton().next);
+            index++;
+            if(index >= EEP_MAX_DATA)
+            {
+                index = 0;
+            }
+            eep_ReadDataMeasure(index, &ldata);
+            screen_DataMeasure(ldata, CALIBSET);
+        }
+        if(_ON == mbutton.prev)
+        {
+            mbutton.prev = _OFF;
+            while(_ON == io_getButton().prev);
+            if(index > 0)
+            {
+                index--;
+            }
+            else
+            {
+                index = EEP_MAX_DATA - 1;
+            }
+            eep_ReadDataMeasure(index, &ldata);
+            screen_DataMeasure(ldata , CALIBSET);
+        }
+        if(_ON == mbutton.reset)
+        {
+            mbutton.reset = _OFF;
+            while(_ON == io_getButton().reset);
+            screen_Clear();
+            exit = 1;
+        }
+    }
+    while(exit == 0);
+    time_Stop(TIMER_CLEARSENSOR);
+    mledStatus.led3 = u8_Led3;
+    io_setLedStatus(mledStatus);
+    if(CALIBSET == msetCalibValue)
+    {
+        app_GotoMainScreen(CALIBSET);
+    }
+    else
+    {
+        app_GotoMainScreen(CALIBRESET);
+    }
+}
+
 /* USER CODE END 4 */
 
 /**

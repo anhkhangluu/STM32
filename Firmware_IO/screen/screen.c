@@ -10,7 +10,7 @@
 
 static screenData screenBuffer;
 
-void screen_DataMeasure(dataMeasure data, uint8_t setCalib) {///////////////////////////
+void screen_DataMeasure(dataMeasure data, uint8_t setCalib, uint8_t measIndex) {///////////////////////////
 	if (CALIBSET == setCalib) {
 		if (MEASUREALL == data.mode) {
 			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
@@ -159,12 +159,12 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 		sprintf(screenBuffer.line3,  "HISTORY LIST");
 		break;
 	case measurement1HisList:
-		sprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 1");
-		sprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 1");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
 		break;
 	case measurement2HisList:
-		sprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 2");
-		sprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 2");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
 		break;
 	case VDLRZinput:
 		sprintf(screenBuffer.line2, "V;D;L;R;Z INPUT");
