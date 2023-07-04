@@ -60,7 +60,7 @@ static void io_TestOutput(void)
         HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,_ON);
         HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,_ON);
         HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,_ON);
-        delay(2000);
+        HAL_Delay(2000);
         HAL_GPIO_WritePin(OUT0_GPIO_Port,OUT0_Pin,_OFF);
         HAL_GPIO_WritePin(OUT1_GPIO_Port,OUT1_Pin,_OFF);
         HAL_GPIO_WritePin(OUT2_GPIO_Port,OUT2_Pin,_OFF);
