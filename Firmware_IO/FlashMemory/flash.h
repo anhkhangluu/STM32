@@ -15,10 +15,14 @@
 #define FLASH_PAGE_DATA_CALIB			22
 #define FLASH_PAGE_HISTORY				42
 
-
-void FLASH_WriteHistoryDataMeasure(dataMeasure *data, uint8_t measurementIndex, uint8_t hisIndex);
-uint16_t FLASH_ReadCurrentIndex(uint8_t measurementIndex);
 void FLASH_WriteCurrentIndex(uint16_t index, uint8_t measurementIndex);
 void FLASH_WriteDataCurrent(MeasureValue *data, uint8_t measurementIndex);
 void FLASH_WriteDataCalib(MeasureValue *data, uint8_t measurementIndex);
+void FLASH_WriteHistoryDataMeasure(dataMeasure *data, uint8_t measurementIndex, uint8_t hisIndex);
+
+
+uint16_t FLASH_ReadCurrentIndex(uint8_t measurementIndex);
+dataMeasure FLASH_ReadDataMeasure(uint8_t measurementIndex, uint8_t hisIndex);
+MeasureValue FLASH_ReadDataCalib(uint8_t measurementIndex);
+MeasureValue FLASH_ReadDataCurrent(uint8_t measurementIndex);
 #endif /* INC_EEPROM_EMULATE_H_ */

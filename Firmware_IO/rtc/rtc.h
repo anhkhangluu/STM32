@@ -8,11 +8,10 @@
 #ifndef RTC_H_
 #define RTC_H_
 
-
 #include "structer.h"
 #include "main.h"
 
-Time rtc_Now(void);
+Time rtc_Now();
 void rtc_SetDateTime(Time time);
 
 

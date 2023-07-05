@@ -10,7 +10,8 @@
 
 static screenData screenBuffer;
 
-void screen_DataMeasure(dataMeasure data, uint8_t setCalib, uint8_t measIndex) {///////////////////////////
+void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measIndex) {
+	LCD_Clear();
 	if (CALIBSET == setCalib) {
 		if (MEASUREALL == data.mode) {
 			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
@@ -86,6 +87,46 @@ void screen_DataMeasure(dataMeasure data, uint8_t setCalib, uint8_t measIndex) {
 	LCD_Puts(0, 3, screenBuffer.line4);
 }
 
+void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
+		uint8_t measIndex) {
+	LCD_Clear();
+	if (CALIBSET == setCalib) {
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEAS. %01d HISTORY",
+				measIndex);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
+				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
+				data.time.day, data.time.hour, data.time.minute);
+		if (MEASUREALL == data.mode || data.mode == ZERROR2) {
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "	A=%+-#2.1f°",
+					(float) data.coordinates.aX / 10);
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "	B=%+-#2.1f°",
+					(float) data.coordinates.aY / 10);
+		} else if (ZERROR1 == data.mode || data.mode == ZONLY) {
+
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "	A=......");
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "	B=......");
+		} else {
+            snprintf(screenBuffer.line1,LCD_LINE_SIZE+1,"                ");
+            snprintf(screenBuffer.line2,LCD_LINE_SIZE+1,"   No Data...!  ");
+            snprintf(screenBuffer.line3,LCD_LINE_SIZE+1,"                ");
+            snprintf(screenBuffer.line4,LCD_LINE_SIZE+1,"                ");
+		}
+	}
+	else
+	{
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEAS. %01d HISTORY",
+						measIndex);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
+						"....-..-.. ..:..");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "	A=......");
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "	B=......");
+	}
+	LCD_Puts(0, 0, screenBuffer.line1);
+	LCD_Puts(0, 1, screenBuffer.line2);
+	LCD_Puts(0, 2, screenBuffer.line3);
+	LCD_Puts(0, 3, screenBuffer.line4);
+}
+
 void screen_Time(Time time) {
 	snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "   20%02d-%02d-%02d   ",
 			time.year, time.month, time.day);
@@ -98,6 +139,7 @@ void screen_Time(Time time) {
 }
 
 void screen_setDateTime(Time time, CycleTime cycle) {
+	LCD_Clear();
 	switch (cycle) {
 	case SET_YEAR:
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
@@ -130,7 +172,7 @@ void screen_setDateTime(Time time, CycleTime cycle) {
 				time.hour, time.minute);
 		break;
 	}
-//	LCD_Puts(0, 0, "  TIME SETTING  ");
+	LCD_Puts(0, 0, "  TIME SETTING  ");
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 }
@@ -147,16 +189,16 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 
 	switch (optionIndex) {
 	case measurement1Setting:
-		sprintf(screenBuffer.line2, "MEASUREMENT 1");
-		sprintf(screenBuffer.line3,  "SETTING");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,"MEASUREMENT 1");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "SETTING");
 		break;
 	case measurement2Setting:
-		sprintf(screenBuffer.line2,  "MEASUREMENT 2");
-		sprintf(screenBuffer.line3,  "SETTING");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 2");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "SETTING");
 		break;
 	case measurementHis:
-		sprintf(screenBuffer.line2,  "MEASUREMENT");
-		sprintf(screenBuffer.line3,  "HISTORY LIST");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
 		break;
 	case measurement1HisList:
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "MEASUREMENT 1");
@@ -167,16 +209,19 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "HISTORY LIST");
 		break;
 	case VDLRZinput:
-		sprintf(screenBuffer.line2, "V;D;L;R;Z INPUT");
-		sprintf(screenBuffer.line3,  "%s", "");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,"V;D;L;R;Z INPUT");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "%s", "");
 		break;
 	case timeSetting:
-		sprintf(screenBuffer.line2, "TIME SETTING");
-		sprintf(screenBuffer.line3,  "%s", "");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,"TIME SETTING");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "%s", "");
 		break;
 	default:
 		break;
 	}
+
+	LCD_Clear();
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 }
+

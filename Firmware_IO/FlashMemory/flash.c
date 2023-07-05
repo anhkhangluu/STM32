@@ -23,10 +23,10 @@ void FLASH_WriteCurrentIndex(uint16_t index, uint8_t measurementIndex) {
 	uint16_t ReadBuf[(TOTAL_BYTE + 1) / 2];
 
 	if (measurementIndex == 1) {
-		Addr = MEASUREMENT_1_START_ADDR + FLASH_PAGE_CURRENT_INDEX;
+		Addr = MEASUREMENT_1_START_ADDR;
 		FLASH_ReadEntireMeasurement1(ReadBuf);
 	} else {
-		Addr = MEASUREMENT_2_START_ADDR + FLASH_PAGE_CURRENT_INDEX;
+		Addr = MEASUREMENT_2_START_ADDR;
 		FLASH_ReadEntireMeasurement2(ReadBuf);
 	}
 	updateCurrentIndex(ReadBuf, index);
@@ -51,6 +51,10 @@ void FLASH_WriteHistoryDataMeasure(dataMeasure *data, uint8_t measurementIndex,
 	uint32_t Addr = 0;
 	uint16_t ReadBuf[(TOTAL_BYTE + 1) / 2] = {0};
 
+	if(data = NULL)
+	{
+		return;
+	}
 	if (measurementIndex == 1) {
 		Addr = MEASUREMENT_1_START_ADDR;
 		FLASH_ReadEntireMeasurement1(ReadBuf);
@@ -62,7 +66,14 @@ void FLASH_WriteHistoryDataMeasure(dataMeasure *data, uint8_t measurementIndex,
 	FLASH_Write(ReadBuf, Addr);
 }
 
-dataMeasure FLASH_ReadDataMeasure(uint32_t Addr) { ///////////////////// rewrite
+dataMeasure FLASH_ReadDataMeasure(uint8_t measurementIndex, uint8_t hisIndex) {
+	uint32_t Addr = 0;
+
+	if (measurementIndex == 1) {
+		Addr = MEASUREMENT_1_START_ADDR + FLASH_PAGE_HISTORY + (sizeof(dataMeasure)+1)*hisIndex;
+	} else {
+		Addr = MEASUREMENT_2_START_ADDR + FLASH_PAGE_HISTORY + (sizeof(dataMeasure)+1)*hisIndex;
+	}
 	return *(dataMeasure*) Addr;
 }
 
@@ -139,6 +150,10 @@ void FLASH_WriteDataCalib(MeasureValue *data, uint8_t measurementIndex)
 	uint32_t Addr = 0;
 	uint16_t ReadBuf[(TOTAL_BYTE + 1) / 2];
 
+	if(data = NULL)
+	{
+		return;
+	}
 	if (measurementIndex == 1) {
 		Addr = MEASUREMENT_1_START_ADDR;
 		FLASH_ReadEntireMeasurement1(ReadBuf);
@@ -156,6 +171,10 @@ void FLASH_WriteDataCurrent(MeasureValue *data, uint8_t measurementIndex)
 	uint32_t Addr = 0;
 	uint16_t ReadBuf[(TOTAL_BYTE + 1) / 2];
 
+	if(data = NULL)
+	{
+		return;
+	}
 	if (measurementIndex == 1) {
 		Addr = MEASUREMENT_1_START_ADDR ;
 		FLASH_ReadEntireMeasurement1(ReadBuf);
@@ -166,4 +185,41 @@ void FLASH_WriteDataCurrent(MeasureValue *data, uint8_t measurementIndex)
 
 	updateDataCurrent(ReadBuf, data);
 	FLASH_Write(ReadBuf, Addr);
+}
+
+MeasureValue FLASH_ReadDataCalib(uint8_t measurementIndex)
+{
+	uint32_t Addr = 0;
+
+	if (measurementIndex == 1) {
+		Addr = MEASUREMENT_1_START_ADDR + FLASH_PAGE_DATA_CALIB;
+	} else {
+		Addr = MEASUREMENT_2_START_ADDR + FLASH_PAGE_DATA_CALIB;
+	}
+	return *(MeasureValue*) Addr;
+}
+
+MeasureValue FLASH_ReadDataCurrent(uint8_t measurementIndex)
+{
+	uint32_t Addr = 0;
+
+	if (measurementIndex == 1) {
+		Addr = MEASUREMENT_1_START_ADDR + FLASH_PAGE_CURRENT_DATA;
+	} else {
+		Addr = MEASUREMENT_2_START_ADDR + FLASH_PAGE_CURRENT_DATA;
+	}
+	return *(MeasureValue*) Addr;
+}
+
+void FLASH_WriteDataMeasure(dataMeasure *data, uint8_t measurementIndex)
+{
+	uint16_t index = FLASH_ReadCurrentIndex(measurementIndex);
+
+	if(data = NULL)
+	{
+		return;
+	}
+	FLASH_WriteHistoryDataMeasure(data, measurementIndex, index);
+	index++;
+	FLASH_WriteCurrentIndex(index, measurementIndex); //update index history measurement
 }

@@ -33,8 +33,10 @@ void io_setOutput(output out)
     out.out1>0?HAL_GPIO_WritePin(OUT1_GPIO_Port,OUT1_Pin,_ON):HAL_GPIO_WritePin(OUT1_GPIO_Port,OUT1_Pin,_OFF);
     out.out2>0?HAL_GPIO_WritePin(OUT2_GPIO_Port,OUT2_Pin,_ON):HAL_GPIO_WritePin(OUT2_GPIO_Port,OUT2_Pin,_OFF);
     out.out3>0?HAL_GPIO_WritePin(OUT3_GPIO_Port,OUT3_Pin,_ON):HAL_GPIO_WritePin(OUT3_GPIO_Port,OUT3_Pin,_OFF);
+#if 0
     out.rl1>0?HAL_GPIO_WritePin(RELAY0_GPIO_Port,RELAY0_Pin,_ON):HAL_GPIO_WritePin(RELAY0_GPIO_Port,RELAY0_Pin,_OFF);
     out.rl2>0?HAL_GPIO_WritePin(RELAY1_GPIO_Port,RELAY1_Pin,_ON):HAL_GPIO_WritePin(RELAY1_GPIO_Port,RELAY1_Pin,_OFF);
+#endif
 }
 
 void io_setLedStatus(ledStatus led)
@@ -54,8 +56,10 @@ static void io_TestOutput(void)
         HAL_GPIO_WritePin(OUT1_GPIO_Port,OUT1_Pin,_ON);
         HAL_GPIO_WritePin(OUT2_GPIO_Port,OUT2_Pin,_ON);
         HAL_GPIO_WritePin(OUT3_GPIO_Port,OUT3_Pin,_ON);
+#if 0 //TODO
         HAL_GPIO_WritePin(RELAY0_GPIO_Port,RELAY0_Pin,_ON);
         HAL_GPIO_WritePin(RELAY1_GPIO_Port,RELAY1_Pin,_ON);
+#endif
         HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,_ON);
         HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,_ON);
         HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,_ON);
@@ -65,8 +69,10 @@ static void io_TestOutput(void)
         HAL_GPIO_WritePin(OUT1_GPIO_Port,OUT1_Pin,_OFF);
         HAL_GPIO_WritePin(OUT2_GPIO_Port,OUT2_Pin,_OFF);
         HAL_GPIO_WritePin(OUT3_GPIO_Port,OUT3_Pin,_OFF);
+#if 0 //TODO
         HAL_GPIO_WritePin(RELAY0_GPIO_Port,RELAY0_Pin,_OFF);
         HAL_GPIO_WritePin(RELAY1_GPIO_Port,RELAY1_Pin,_OFF);
+#endif
         HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,_OFF);
         HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,_OFF);
         HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,_OFF);

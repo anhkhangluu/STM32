@@ -38,7 +38,7 @@ void rtc_SetDateTime(Time time) {
 	 * */
 }
 
-Time rtc_Now(void) {
+Time rtc_Now() {
 	Time time;
 	RTC_DateTypeDef gDate;
 	RTC_TimeTypeDef gTime;
