@@ -8,6 +8,7 @@
 #include "LCD.h"
 #include "screen.h"
 
+
 static screenData screenBuffer;
 
 void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measIndex) {
@@ -216,6 +217,10 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,"TIME SETTING");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "%s", "");
 		break;
+	case showIP:
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "	IP ADDRESS");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "%s", "");
+		break;
 	default:
 		break;
 	}
@@ -225,3 +230,13 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 	LCD_Puts(0, 2, screenBuffer.line3);
 }
 
+void screen_showIP(wiz_NetInfo *netInfo)
+{
+	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	IP ADDRESS");
+	snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "%03d.%03d.%02d.%02d",netInfo->ip[0], netInfo->ip[1], netInfo->ip[2], netInfo->ip[3]);
+//	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	");
+//	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	IP ADDRESS");
+	LCD_Clear();
+	LCD_Puts(0, 0, screenBuffer.line1);
+	LCD_Puts(0, 1, screenBuffer.line2);
+}

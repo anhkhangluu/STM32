@@ -111,9 +111,7 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-#ifdef USART_DEBUG
-char msg[60];
-#endif
+
 /*----------------------------DHCP-----------------------------*/
 uint8_t dhcp_buffer[1024];
 volatile bool ip_assigned = false;
@@ -138,8 +136,10 @@ uint32_t totalSpace, freeSpace;
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
-//static Time mtime = { 23, 05, 21, 06, 00, 00 };
 static Time mtime = { 23, 05, 21, 06, 00, 00 };
+
+wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA },
+			.dhcp = NETINFO_DHCP };
 
 static button mbutton;
 static input minput;
@@ -163,18 +163,12 @@ static void MX_RTC_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_TIM7_Init(void);
 /* USER CODE BEGIN PFP */
-#ifdef USART_DEBUG
-void send_uart(char *string, ...) {
-	uint8_t len = strlen(string);
-	HAL_UART_Transmit(&USART_DEBUG_HANDLER, (uint8_t*) string, len, HAL_MAX_DELAY); // transmit in blocking mode
-}
-#endif
 
 void Callback_IPAssigned(void) {
 	ip_assigned = true;
 }
 void Callback_IPConflict(void) {
-	printf("Callback: IP conflict!\r\n");
+	//TODO
 }
 
 static void process_SD_Card(void);
@@ -185,18 +179,19 @@ static void app_SettingRtc(void);
 static void app_SettingData(void);
 static void app_GetEeprom(void);
 static void app_Measurement(void);
-static void app_SetCalibValue(void);
-static void app_GetCalibValue(void);
-static void app_CalculatorValue(CycleMeasure lcycleMeasure,uint8_t mode);
+static void app_SetCalibValue(uint8_t measurementIndex);
+static void app_GetCalibValue(uint8_t measurementIndex);
+static void app_CalculatorValue(CycleMeasure lcycleMeasure, uint8_t mode);
 static void app_HisValue(uint8_t measurementIndex);
 static void app_ClearAllOutput(void);
 static void app_GotoMainScreen(uint8_t option);
-static void app_SetCurrentMeasureValue(void);
-static void app_GetCurrentMeasureValue(void);
+static void app_SetCurrentMeasureValue(uint8_t measurementIndex);
+static void app_GetCurrentMeasureValue(uint8_t measurementIndex);
 static void app_TrigerOutputON(void);
 static void app_TrigerOutputOFF(void);
 static optionScreen_e_t app_optionMenu(void);
 static void app_processOptionMenu(optionScreen_e_t optionMenu);
+static void app_ShowIP(void);
 
 /* USER CODE END PFP */
 
@@ -245,14 +240,10 @@ int main(void) {
 
 	HAL_TIM_Base_Start(&htim6); //use for delay_us
 	HAL_TIM_Base_Start_IT(&htim7); //timer interrupt every 100us
-//	HAL_TIM_Base_Start_IT(&htim1); //Start timer input capture
-//	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
-//	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2);
 
 	LCD_Init();
-	process_SD_Card();
+	process_SD_Card(); //error!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	W5500_init();
-
 	LCD_Clear();
 	/* USER CODE END 2 */
 
@@ -263,7 +254,6 @@ int main(void) {
 
 		/* USER CODE BEGIN 3 */
 //	  modbus_tcps(HTTP_SOCKET, MBTCP_PORT);
-
 		/*app.c*/
 		uint32_t time = 0;
 		mbutton = io_getButton();
@@ -676,9 +666,9 @@ static void MX_GPIO_Init(void) {
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOE,
-			GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | OUT3_Pin | GPIO_PIN_8
-					| GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_0
-					| GPIO_PIN_1, GPIO_PIN_RESET);
+			GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | OUT3_Pin | OUT4_Pin
+					| OUT5_Pin | OUT6_Pin | OUT7_Pin | GPIO_PIN_0 | GPIO_PIN_1,
+			GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_SET);
@@ -688,11 +678,12 @@ static void MX_GPIO_Init(void) {
 			GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(W5500_RS_GPIO_Port, W5500_RS_Pin, GPIO_PIN_SET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB,
-	OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8 | GPIO_PIN_9, GPIO_PIN_RESET);
+			OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8 | GPIO_PIN_9,
+			GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOC, LED1_Pin | LED2_Pin, GPIO_PIN_RESET);
@@ -701,11 +692,11 @@ static void MX_GPIO_Init(void) {
 	HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);
 
 	/*Configure GPIO pins : PE2 PE4 PE5 PE6
-	 OUT3_Pin PE8 PE12 PE13
-	 PE14 PE0 PE1 */
+	 OUT3_Pin OUT4_Pin OUT5_Pin OUT6_Pin
+	 OUT7_Pin PE0 PE1 */
 	GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6
-			| OUT3_Pin | GPIO_PIN_8 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14
-			| GPIO_PIN_0 | GPIO_PIN_1;
+			| OUT3_Pin | OUT4_Pin | OUT5_Pin | OUT6_Pin | OUT7_Pin | GPIO_PIN_0
+			| GPIO_PIN_1;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -718,14 +709,14 @@ static void MX_GPIO_Init(void) {
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : PC4 BT_SET_Pin BT_RESERVED_Pin */
-	GPIO_InitStruct.Pin = GPIO_PIN_4 | BT_SET_Pin | BT_RESERVED_Pin;
+	/*Configure GPIO pins : W5500_INT_Pin BT_SET_Pin BT_RESERVED_Pin */
+	GPIO_InitStruct.Pin = W5500_INT_Pin | BT_SET_Pin | BT_RESERVED_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : PC5 LED1_Pin LED2_Pin */
-	GPIO_InitStruct.Pin = GPIO_PIN_5 | LED1_Pin | LED2_Pin;
+	/*Configure GPIO pins : W5500_RS_Pin LED1_Pin LED2_Pin */
+	GPIO_InitStruct.Pin = W5500_RS_Pin | LED1_Pin | LED2_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -746,15 +737,15 @@ static void MX_GPIO_Init(void) {
 	GPIO_InitStruct.Pull = GPIO_PULLUP;
 	HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : PB12 PB13 PB14 PB15 */
-	GPIO_InitStruct.Pin = GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
+	/*Configure GPIO pins : IN7_Pin IN6_Pin IN5_Pin IN4_Pin */
+	GPIO_InitStruct.Pin = IN7_Pin | IN6_Pin | IN5_Pin | IN4_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : PD8 PD9 BT_PREV_Pin BT_NEXT_Pin
+	/*Configure GPIO pins : IN3_Pin IN2_Pin BT_PREV_Pin BT_NEXT_Pin
 	 BT_MENU_Pin BT_RESET_Pin */
-	GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9 | BT_PREV_Pin | BT_NEXT_Pin
+	GPIO_InitStruct.Pin = IN3_Pin | IN2_Pin | BT_PREV_Pin | BT_NEXT_Pin
 			| BT_MENU_Pin | BT_RESET_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -779,31 +770,19 @@ static void MX_GPIO_Init(void) {
 
 /* USER CODE BEGIN 4 */
 void W5500_init() {
-#ifdef USART_DEBUG
-	send_uart("W5500 init() called!");
-#endif
 	reg_wizchip_cs_cbfunc(W5500_Select, W5500_Unselect);
 	reg_wizchip_spi_cbfunc(W5500_ReadByte, W5500_WriteByte);
 	reg_wizchip_spiburst_cbfunc(W5500_ReadBuff, W5500_WriteBuff);
 	uint8_t rx_tx_buff_sizes[] = { 2, 2, 2, 2, 2, 2, 2, 2 };
 	wizchip_init(rx_tx_buff_sizes, rx_tx_buff_sizes);
-#ifdef USART_DEBUG
-	send_uart("Calling DHCP_init()...\r\n");
-#endif
-	wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA },
-			.dhcp = NETINFO_DHCP };
 
 	setSHAR(net_info.mac);
 
 	DHCP_init(DHCP_SOCKET, dhcp_buffer);
-#ifdef USART_DEBUG
-	send_uart("Registering DHCP callbacks...\r\n");
-#endif
+
 	reg_dhcp_cbfunc(Callback_IPAssigned, Callback_IPAssigned,
 			Callback_IPConflict);
-#ifdef USART_DEBUG
-	send_uart("Calling DHCP_run()...\r\n");
-#endif
+
 	uint32_t TimeOut = 1000000;
 	//get IP assigned
 	while ((!ip_assigned) && (TimeOut > 0)) {
@@ -812,9 +791,7 @@ void W5500_init() {
 	}
 
 	if (!ip_assigned) {
-#ifdef USART_DEBUG
-		send_uart("\r\nIP was not assigned :(\r\n");
-#endif
+
 		return;
 	}
 
@@ -824,35 +801,18 @@ void W5500_init() {
 
 	uint8_t dns[4];
 	getDNSfromDHCP(dns);
-#ifdef USART_DEBUG
-	PRINT_NETINFO(net_info);
-	send_uart("Calling wizchip_setnetinfo()...\r\n");
-#endif
+
 	wizchip_setnetinfo(&net_info);
 	HAL_Delay(200);
 	eMBErrorCode MBresult;
 	MBresult = eMBTCPInit(MBTCP_PORT);
-	if (MBresult == MB_ENOERR) {
-#ifdef USART_DEBUG
-		send_uart("\r\nModbus-TCP initial success!\r\n");
-#endif
-	} else {
-#ifdef USART_DEBUG
-		send_uart("\r\nModbus-TCP initial error\r\n");
-#endif
+	if (MBresult != MB_ENOERR) {
 		return;
 	}
 
 	MBresult = eMBEnable();
 	HAL_Delay(200);
-	if (MBresult == MB_ENOERR) {
-#ifdef USART_DEBUG
-		send_uart("\r\nModbus-TCP Start!\r\n");
-#endif
-	} else {
-#ifdef USART_DEBUG
-		send_uart("\r\nModbus-TCP error!\r\n");
-#endif
+	if (MBresult != MB_ENOERR) {
 		return;
 	}
 }
@@ -1067,7 +1027,8 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					tmp = ((mtime.year >= 2000)?(mtime.year - 2000) : (uint8_t) mtime.year);
+					tmp = ((mtime.year >= 2000) ?
+							(mtime.year - 2000) : (uint8_t) mtime.year);
 					tmp += 1;
 					if (99 < tmp)
 						tmp = 0;
@@ -1290,7 +1251,7 @@ static void app_SettingRtc(void) {
 	}
 }
 
-static void app_Measurement(uint8_t measurementIndex) {
+static void app_Measurement(void) {
 	CycleMeasure cycleMeasure = STOP;
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
@@ -1322,7 +1283,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 		}
 		/********************************************## 1 ##*******************************************/
 		/*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
-		if ((STOP == cycleMeasure) && (_ON == minput.in0)) // X10=ON
+		if ((STOP == cycleMeasure) && (_ON == GET_IN0)) // X10=ON
 				{
 			app_ClearAllOutput();
 			minput.in0 = _OFF;
@@ -1340,24 +1301,35 @@ static void app_Measurement(uint8_t measurementIndex) {
 		/*Waiting clear Sensor*/
 		if ((CLEARSENSOR == cycleMeasure)
 				&& (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR))) {
-			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
-				moutput.rl1 = _OFF;
-				moutput.out0 = _ON;
-				moutput.out1 = _OFF;
-				io_setOutput(moutput);
-				msensor.s0 = _OFF;
-				msensor.s1 = _OFF;
-				cycleMeasure = WAITMEASUREZ;
+			do {
+				if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
+					moutput.rl1 = _OFF;
+					moutput.out0 = _ON;
+					moutput.out1 = _OFF;
+					io_setOutput(moutput);
+					msensor.s0 = _OFF;
+					msensor.s1 = _OFF;
+					cycleMeasure = WAITMEASUREZ;
 //                DBG("SENSOR OK\n");
-			} else {
-				moutput.rl1 = _OFF;
-				moutput.out0 = _OFF;
-				moutput.out1 = _OFF;
-				io_setOutput(moutput);
-				cycleMeasure = ERROR;
+				} else {
+					timer_Start(TIMER_CLEARSENSOR, TIMERERRORSENSOR);
+					moutput.rl1 = _OFF;
+					moutput.out0 = _OFF;
+					moutput.out1 = _OFF;
+					io_setOutput(moutput);
+					cycleMeasure = ERROR;
 //                DBG("SENSOR NOT OK\n");
-			}
+				}
+			} while ((timer_Status(TIMER_CLEARSENSOR) != TIME_FINISH)
+					&& (moutput.out0 == _OFF));
 			getInput = GET_SENSOR;
+
+			if ((timer_Status(TIMER_CLEARSENSOR) == TIME_FINISH)
+					&& (moutput.out0 == _OFF)) {
+				while (1)
+					; //infinitive loop -> system stop
+			}
+
 		}
 		/********************************************## 4 ##*******************************************/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
@@ -1425,16 +1397,16 @@ static void app_Measurement(uint8_t measurementIndex) {
 				minput.in1 = _OFF;
 				moutput.out1 = _ON;
 				io_setOutput(moutput);
-				app_GetCurrentMeasureValue();
+				app_GetCurrentMeasureValue(MEASUREMENT_1);
 				time_Stop(TIMER_Z);
 				mmeasureValue.X1 = mCurrentMeasureValue.X1;
 				mmeasureValue.Y1 = mCurrentMeasureValue.Y1;
 				mmeasureValue.X2 = mCurrentMeasureValue.X2;
 				mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
-				app_SetCurrentMeasureValue();
+				app_SetCurrentMeasureValue(MEASUREMENT_1);
 				mdata.mode = ZONLY;
 				app_CalculatorValue(cycleMeasure, mdata.mode);
-				screen_DataMeasureType1(mdata, msetCalibValue);
+				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1);
 				cycleMeasure = Z_OK;
 				getInput = GET_BUTTON;
 				XStatus = SENSORCHANGE;
@@ -1450,7 +1422,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 				cycleMeasure = Z_NOT_OK;
 				getInput = GET_SENSOR;
 				mdata.mode = ZERROR1;
-				screen_DataMeasureType1(mdata, msetCalibValue);
+				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1);
 				//delay(100);
 //                DBG("C=2 MEASURE Z NOT OK\n");
 			}
@@ -1468,8 +1440,8 @@ static void app_Measurement(uint8_t measurementIndex) {
 			cycleMeasure = WAITMEASUREX1Y1;
 			getInput = GET_SENSOR;
 //            DBG("SET Z\n");
-			app_SetCalibValue();
-			app_GetCalibValue();
+			app_SetCalibValue(MEASUREMENT_1);
+			app_GetCalibValue(MEASUREMENT_1);
 		}
 		/********************************************## 6 ##*******************************************/
 		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
@@ -1493,7 +1465,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 		};
 		while ((WAITRBSTABLEX1Y1 == cycleMeasure) && (0 == GET_IN0)) {
 			if (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR)) {
-				/*Start couter*/
+				/*Start counter*/
 				timer_Start(TIMER_X, TIMERMAXVALUE);
 				timer_Start(TIMER_Y, TIMERMAXVALUE);
 				minput.in1 = _OFF;
@@ -1501,7 +1473,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
 				cycleMeasureY = SEN_START;
-//                DBG("Start couter X1, Y1\n");
+//                DBG("Start counter X1, Y1\n");
 			}
 		};
 		while ((MEASUREX1Y1 == cycleMeasure) && (0 == GET_IN0)) {
@@ -1514,7 +1486,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 				cycleMeasureX = SEN_FINISH;
 				getInput = GET_SENSOR;
 				XStatus = SENSORCHANGE;
-				DBG("X1 = SEN_FINISH\n");
+//				DBG("X1 = SEN_FINISH\n");
 				// DBG("mmeasureValue.X1 = %d\n",mmeasureValue.X1);
 			}
 			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
@@ -1524,7 +1496,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 				cycleMeasureY = SEN_FINISH;
 				getInput = GET_SENSOR;
 				YStatus = SENSORCHANGE;
-				DBG("Y1 = SEN_FINISH\n");
+//				DBG("Y1 = SEN_FINISH\n");
 				// DBG("mmeasureValue.Y1 = %d\n",mmeasureValue.Y1);
 			}
 			if ((SEN_FINISH == cycleMeasureX)
@@ -1633,12 +1605,12 @@ static void app_Measurement(uint8_t measurementIndex) {
 
 		/*Robot di chuyển tới vị trí P18*/
 		if ((WAITSETVALUE == cycleMeasure) && (_ON == mbutton.set)) {
-			app_GetCalibValue();
+			app_GetCalibValue(MEASUREMENT_1);
 			if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
 					&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
 					&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
-				app_SetCalibValue();
-				app_GetCalibValue();
+				app_SetCalibValue(MEASUREMENT_1);
+				app_GetCalibValue(MEASUREMENT_1);
 				mledStatus.led3 = _ON;
 				msetCalibValue = CALIBSET;
 				io_setLedStatus(mledStatus);
@@ -1655,14 +1627,14 @@ static void app_Measurement(uint8_t measurementIndex) {
 			cycleMeasure = FINISH;
 			getInput = GET_BUTTON;
 			/*Calculator Value - Printf to screen*/
-			app_SetCurrentMeasureValue();
+			app_SetCurrentMeasureValue(MEASUREMENT_1);
 			if (ZONLY == mdata.mode) {
 				mdata.mode = MEASUREALL;
 			} else if (ZERROR1 == mdata.mode) {
 				mdata.mode = ZERROR2;
 			}
 			app_CalculatorValue(cycleMeasure, mdata.mode);
-			screen_DataMeasureType1(mdata, msetCalibValue);
+			screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1);
 //            DBG("cycleMeasure = FINISH C=5\n");
 		}
 	} while (0 == GET_IN0);
@@ -1683,7 +1655,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 	io_setOutput(moutput);
 	app_TrigerOutputON();
 	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue)) {
-		eep_WriteDataMeasure(&mdata);
+		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
 	}
 }
 
@@ -1694,8 +1666,8 @@ static void app_ClearAllOutput(void) {
 	io_setOutput(moutput);
 }
 
-static void app_GetCurrentMeasureValue(void) {
-	(void) eep_ReadDataCurrent(&mCurrentMeasureValue);
+static void app_GetCurrentMeasureValue(uint8_t measurementIndex) {
+	mCurrentMeasureValue = FLASH_ReadDataCurrent(measurementIndex);
 //    DBG("mCurrentMeasureValue.X1 = %d\n",mCurrentMeasureValue.X1);
 //    DBG("mCurrentMeasureValue.Y1 = %d\n",mCurrentMeasureValue.Y1);
 //    DBG("mCurrentMeasureValue.X2 = %d\n",mCurrentMeasureValue.X2);
@@ -1703,13 +1675,13 @@ static void app_GetCurrentMeasureValue(void) {
 //    DBG("mCurrentMeasureValue.Z = %d\n",mCurrentMeasureValue.Z);
 }
 
-static void app_SetCurrentMeasureValue(void) {
+static void app_SetCurrentMeasureValue(uint8_t measurementIndex) {
 	mCurrentMeasureValue.X1 = mmeasureValue.X1;
 	mCurrentMeasureValue.Y1 = mmeasureValue.Y1;
 	mCurrentMeasureValue.X2 = mmeasureValue.X2;
 	mCurrentMeasureValue.Y2 = mmeasureValue.Y2;
 	mCurrentMeasureValue.Z = mmeasureValue.Z;
-	(void) eep_WriteDataCurrent(&mCurrentMeasureValue);
+	FLASH_WriteDataCurrent(&mCurrentMeasureValue, measurementIndex);
 //    DBG("mCurrentMeasureValue.X1 = %d\n",mCurrentMeasureValue.X1);
 //    DBG("mCurrentMeasureValue.Y1 = %d\n",mCurrentMeasureValue.Y1);
 //    DBG("mCurrentMeasureValue.X2 = %d\n",mCurrentMeasureValue.X2);
@@ -1853,13 +1825,13 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 	}
 }
 
-static void app_SetCalibValue(void) {
+static void app_SetCalibValue(uint8_t measurementIndex) {
 	mcalibValue.X1 = mmeasureValue.X1;
 	mcalibValue.Y1 = mmeasureValue.Y1;
 	mcalibValue.X2 = mmeasureValue.X2;
 	mcalibValue.Y2 = mmeasureValue.Y2;
 	mcalibValue.Z = mmeasureValue.Z;
-	eep_WriteDataCalib(&mcalibValue);
+	FLASH_WriteDataCalib(&mcalibValue, measurementIndex);
 //    DBG("mcalibValue.X1 = %d\n",mcalibValue.X1);
 //    DBG("mcalibValue.Y1 = %d\n",mcalibValue.Y1);
 //    DBG("mcalibValue.X2 = %d\n",mcalibValue.X2);
@@ -1867,8 +1839,8 @@ static void app_SetCalibValue(void) {
 //    DBG("mcalibValue.Z = %d\n",mcalibValue.Z);
 }
 
-static void app_GetCalibValue(void) {
-	eep_ReadDataCalib(&mcalibValue);
+static void app_GetCalibValue(uint8_t measurementIndex) {
+	mcalibValue = FLASH_ReadDataCalib(measurementIndex);
 //    DBG("mcalibValue.X1 = %d\n",mcalibValue.X1);
 //    DBG("mcalibValue.Y1 = %d\n",mcalibValue.Y1);
 //    DBG("mcalibValue.X2 = %d\n",mcalibValue.X2);
@@ -1879,11 +1851,11 @@ static void app_GetCalibValue(void) {
 static void app_TrigerOutputOFF(void) {
 	moutput.rl2 = _OFF;
 	io_setOutput(moutput);
-	delay(100);
+	HAL_Delay(100);
 }
 
 static void app_TrigerOutputON(void) {
-	delay(100);
+	HAL_Delay(100);
 	moutput.rl2 = _ON;
 	io_setOutput(moutput);
 }
@@ -1959,10 +1931,23 @@ static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	case timeSetting:
 		app_SettingRtc();
 		break;
-	//TODO show ip address
+	case showIP:
+		app_ShowIP();
+		break;
+		//TODO show ip address
 	default:
 		break;
 	}
+}
+
+static void app_ShowIP(void)
+{//TODO
+	uint8_t exit = 0;
+	screen_showIP(&net_info);
+	do
+	{
+
+	}while (exit == 0);
 }
 
 static void app_HisValue(uint8_t measurementIndex) {
@@ -2009,7 +1994,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 			if (index == FLASH_ReadCurrentIndex(measurementIndex)) {
 				//reaches the oldest data record
 				index++; //keep the value of index
-				index %= 10;//this calculation is use in cases where the index equals 10 because this index is used for history index range of 0->9 (10 nearest times data)
+				index %= 10; //this calculation is use in cases where the index equals 10 because this index is used for history index range of 0->9 (10 nearest times data)
 			}
 
 			ldata = FLASH_ReadDataMeasure(measurementIndex, index);
@@ -2021,14 +2006,13 @@ static void app_HisValue(uint8_t measurementIndex) {
 			uint8_t tempExit = 0;
 			do {
 
-
 				mbutton = io_getButton();
 				if (mbutton.next == _ON) {
 					while (_ON == io_getButton().next)
 						;
 					screen_DataMeasureType2(ldata, CALIBSET, measurementIndex);
 				}
-				if (mbutton.prev ==_ON) {
+				if (mbutton.prev == _ON) {
 					while (_ON == io_getButton().prev)
 						;
 					screen_DataMeasureType1(ldata, CALIBSET, measurementIndex);
@@ -2059,14 +2043,13 @@ static void app_HisValue(uint8_t measurementIndex) {
 	}
 }
 
-static void app_GotoMainScreen(uint8_t option)
-{
-    uint16_t index;
-    dataMeasure data;
+static void app_GotoMainScreen(uint8_t option) {
+	uint16_t index;
+	dataMeasure data;
 
-    index = FLASH_ReadCurrentIndex(MEASUREMENT_1);
-    data = FLASH_ReadDataMeasure(MEASUREMENT_1, index);
-    screen_DataMeasureType1(data, option, MEASUREMENT_1);
+	index = FLASH_ReadCurrentIndex(MEASUREMENT_1);
+	data = FLASH_ReadDataMeasure(MEASUREMENT_1, index);
+	screen_DataMeasureType1(data, option, MEASUREMENT_1);
 }
 /* USER CODE END 4 */
 

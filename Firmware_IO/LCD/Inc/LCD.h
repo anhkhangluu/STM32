@@ -10,7 +10,9 @@
 
 
 #include "LCD_Config.h"
+#include "wizchip_conf.h"
 
+void screen_showIP(wiz_NetInfo *netInfo);
 
 void LCD_Init(void);
 void LCD_DisplayOn(void);

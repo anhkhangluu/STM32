@@ -18,8 +18,7 @@
 void FLASH_WriteCurrentIndex(uint16_t index, uint8_t measurementIndex);
 void FLASH_WriteDataCurrent(MeasureValue *data, uint8_t measurementIndex);
 void FLASH_WriteDataCalib(MeasureValue *data, uint8_t measurementIndex);
-void FLASH_WriteHistoryDataMeasure(dataMeasure *data, uint8_t measurementIndex, uint8_t hisIndex);
-
+void FLASH_WriteDataMeasure(dataMeasure *data, uint8_t measurementIndex);
 
 uint16_t FLASH_ReadCurrentIndex(uint8_t measurementIndex);
 dataMeasure FLASH_ReadDataMeasure(uint8_t measurementIndex, uint8_t hisIndex);

@@ -17,8 +17,10 @@
 #define TIMER_Y                     1U
 #define TIMER_Z                     0U
 #define TIMER_CLEARSENSOR           2U
+#define TIMER_ERRORSENSOR			3U
 #define TIMER_CLEARCALIB            2U
 #define TIMERCLEARSENSOR            2000U * 10U
+#define TIMERERRORSENSOR			5000U * 10U
 #define TIMERCLEARCALIB             6000U * 10U
 #define TIMERY0ON                   1500U * 10U
 #define TIMEWAITX11                 200U * 10U

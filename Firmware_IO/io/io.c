@@ -2,11 +2,6 @@
 #include "..\common\definition.h"
 #include "io.h"
 
-////// check define main.h
-//static int SENSOR0 =  6; //PC24
-//static int SENSOR1 =  5; //PC25
-
-
 
 static void io_TestOutput(void);
 
@@ -77,7 +72,7 @@ static void io_TestOutput(void)
         HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,_OFF);
         HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,_OFF);
         HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,_OFF);
-        delay(2000);
+        HAL_Delay(2000);
     }
 }
 

@@ -17,6 +17,7 @@ typedef enum _optionScreen {
 	measurementHis,
 	VDLRZinput,
 	timeSetting,
+	showIP,
 	maxNoneOption, //use for out of range
 	measurement1HisList,
 	measurement2HisList
