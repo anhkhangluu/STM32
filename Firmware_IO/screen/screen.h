@@ -23,12 +23,12 @@ typedef enum _optionScreen {
 	measurement2HisList
 } optionScreen_e_t;
 
-void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measIndex);
-void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib, uint8_t measIndex);
+void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measIndex, uint8_t showHisFlag);
+void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib, uint8_t measIndex, uint8_t showHisFlag);
 void screen_Time(Time time);
 
 void screen_setDateTime(Time time, CycleTime cycle);
-void screen_OptionMenu(optionScreen_e_t optionIndex);
+void screen_OptionMenu(optionScreen_e_t *optionIndex);
 
 
 

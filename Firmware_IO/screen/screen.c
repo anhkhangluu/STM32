@@ -11,72 +11,44 @@
 
 static screenData screenBuffer;
 
-void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measIndex) {
+void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measIndex, uint8_t showHisFlag) {
 	LCD_Clear();
 	if (CALIBSET == setCalib) {
+		if(!showHisFlag)
+			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+							measIndex);
+		else
+			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
+								measIndex);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
+				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
+				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode) {
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
-					measIndex);
-			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
-					"20%02d-%02d-%02d %02d:%02d", data.time.year,
-					data.time.month, data.time.day, data.time.hour,
-					data.time.minute);
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
 					"X=%+-#1.2f  Y=%+-#1.2f", (float) data.coordinates.X / 100,
 					(float) data.coordinates.Y / 100);
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
 					"Z=%+-#1.2f  R=%+-#1.2f", (float) data.coordinates.Z / 100,
 					(float) data.coordinates.R / 100);
-//			screenBuffer.line4[6] = 0xDF;
-//			screenBuffer.line4[15] = 0xDF;
 		} else if (ZERROR1 == data.mode) {
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
-					measIndex);
-			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
-					"20%02d-%02d-%02d %02d:%02d", data.time.year,
-					data.time.month, data.time.day, data.time.hour,
-					data.time.minute);
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=.... ");
 		} else if (ZERROR2 == data.mode) {
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
-								measIndex);
-			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
-					"20%02d-%02d-%02d %02d:%02d", data.time.year,
-					data.time.month, data.time.day, data.time.hour,
-					data.time.minute);
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
 					"X=%+-#1.2f  Y=%+-#1.2f", (float) data.coordinates.X / 100,
 					(float) data.coordinates.Y / 100);
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
 					"Z=....   R=%+-#1.2f", (float) data.coordinates.R / 100);
-//			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-//					"A=%+-#1.1f   B=%+-#1.1f ",
-//					(float) data.coordinates.aX / 10,
-//					(float) data.coordinates.aY / 10);
-//			screenBuffer.line4[6] = 0xDF;
-//			screenBuffer.line4[15] = 0xDF;
 		} else if (ZONLY == data.mode) {
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
-								measIndex);
-			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
-					"20%02d-%02d-%02d %02d:%02d", data.time.year,
-					data.time.month, data.time.day, data.time.hour,
-					data.time.minute);
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
 					"Z=%+-#1.2f  R=.... ", (float) data.coordinates.Z / 100);
-//			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "A=....   B=.... ");
 		} else {
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
-					measIndex);
 			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "                ");
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   No Data...!  ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "                ");
 		}
 	} else {
-		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEASUREMENT %01d",
-				measIndex);
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=.... ");
@@ -89,27 +61,31 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 }
 
 void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
-		uint8_t measIndex) {
+		uint8_t measIndex, uint8_t showHisFlag) {
 	LCD_Clear();
 	if (CALIBSET == setCalib) {
-		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	MEAS. %01d HISTORY",
-				measIndex);
+		if(!showHisFlag)
+			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+							measIndex);
+		else
+			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
+								measIndex);
+
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
 				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode || data.mode == ZERROR2) {
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "	A=%+-#2.1f°",
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=%+-#2.1f°",
 					(float) data.coordinates.aX / 10);
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "	B=%+-#2.1f°",
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=%+-#2.1f°",
 					(float) data.coordinates.aY / 10);
 		} else if (ZERROR1 == data.mode || data.mode == ZONLY) {
 
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "	A=......");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "	B=......");
 		} else {
-            snprintf(screenBuffer.line1,LCD_LINE_SIZE+1,"                ");
-            snprintf(screenBuffer.line2,LCD_LINE_SIZE+1,"   No Data...!  ");
-            snprintf(screenBuffer.line3,LCD_LINE_SIZE+1,"                ");
+            snprintf(screenBuffer.line2,LCD_LINE_SIZE+1,"                ");
+            snprintf(screenBuffer.line3,LCD_LINE_SIZE+1,"   No Data...!  ");
             snprintf(screenBuffer.line4,LCD_LINE_SIZE+1,"                ");
 		}
 	}
@@ -178,17 +154,17 @@ void screen_setDateTime(Time time, CycleTime cycle) {
 	LCD_Puts(0, 2, screenBuffer.line3);
 }
 
-void screen_OptionMenu(optionScreen_e_t optionIndex) {
-	if (optionIndex == measurement1HisList || optionIndex == measurement2HisList)
+void screen_OptionMenu(optionScreen_e_t *optionIndex) {
+	if (*optionIndex == measurement1HisList || *optionIndex == measurement2HisList)
 		;
-	else if (optionIndex <= minNoneOption)
-		optionIndex = measurement1Setting;
-	else if	(optionIndex >= maxNoneOption)
-		optionIndex = timeSetting;
+	else if (*optionIndex <= minNoneOption)
+		*optionIndex = minNoneOption + 1;
+	else if	(*optionIndex >= maxNoneOption)
+		*optionIndex = maxNoneOption - 1;
 	else
 		;
 
-	switch (optionIndex) {
+	switch (*optionIndex) {
 	case measurement1Setting:
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,"MEASUREMENT 1");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "SETTING");
@@ -218,7 +194,7 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "%s", "");
 		break;
 	case showIP:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "	IP ADDRESS");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "IP ADDRESS");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "%s", "");
 		break;
 	default:
@@ -232,7 +208,7 @@ void screen_OptionMenu(optionScreen_e_t optionIndex) {
 
 void screen_showIP(wiz_NetInfo *netInfo)
 {
-	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	IP ADDRESS");
+	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "IP ADDRESS");
 	snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "%03d.%03d.%02d.%02d",netInfo->ip[0], netInfo->ip[1], netInfo->ip[2], netInfo->ip[3]);
 //	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	");
 //	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "	IP ADDRESS");

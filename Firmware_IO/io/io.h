@@ -5,9 +5,9 @@
 #include "stm32f072xb.h"
 
 
-#define GET_IN0     ((IN0_GPIO_Port->IDR) & IN0_Pin)
-#define GET_IN1     ((IN1_GPIO_Port->IDR) & IN1_Pin)
-#define GET_IN2		((IN2_GPIO_Port->IDR) & IN2_Pin)
+#define GET_IN0     (((IN0_GPIO_Port->IDR) & IN0_Pin) >> 11)
+#define GET_IN2		(((IN2_GPIO_Port->IDR) & IN2_Pin) >> 9)
+#define GET_IN1     (((IN1_GPIO_Port->IDR) & IN1_Pin) >> 10)
 
 #define GET_SENSOR0 ((SENSOR0_GPIO_Port->IDR) & SENSOR0_Pin)
 #define GET_SENSOR1 ((SENSOR1_GPIO_Port->IDR) & SENSOR1_Pin)
@@ -20,9 +20,9 @@ void io_setLedStatus(ledStatus led);
 static inline input io_getInput(void)
 {
     input linput;
-    linput.in0 = (GET_IN0 > 0 ? _OFF:_ON);
-    linput.in1 = (GET_IN1 > 0 ? _OFF:_ON);
-    linput.in2 = (GET_IN2 > 0 ? _OFF:_ON);
+    linput.in0 = (GET_IN0 > 0) ? _OFF:_ON;
+    linput.in1 = (GET_IN1 > 0) ? _OFF:_ON;
+    linput.in2 = (GET_IN2 > 0) ? _OFF:_ON;
     return linput;
 }
 
