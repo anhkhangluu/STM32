@@ -6,7 +6,7 @@
  */
 
 #include "flash.h"
-#define TOTAL_BYTE	241
+#define TOTAL_BYTE	241 //TODO
 
 static void updateHistoryDataMeasure(uint16_t *ReadBuf, dataMeasure *data,
 		uint16_t hisIndex);
@@ -224,3 +224,34 @@ void FLASH_WriteDataMeasure(dataMeasure *data, uint8_t measurementIndex)
 	index = (index == 9)? 0:(index+1);
 	FLASH_WriteCurrentIndex(index, measurementIndex); //update index history measurement
 }
+
+void FLASH_WriteVDRLZ(VDRLZ_Input VDRLZ)
+{
+	static FLASH_EraseInitTypeDef EraseInitStruct;
+	uint32_t PAGEError;
+	uint32_t Addr = 0x0801E800UL;
+
+	/* Unlock the Flash to enable the flash control register access *************/
+	HAL_FLASH_Unlock();
+
+	/* Fill EraseInit structure*/
+	EraseInitStruct.TypeErase = FLASH_TYPEERASE_PAGES;
+	EraseInitStruct.PageAddress = Addr;
+	EraseInitStruct.NbPages = 1;
+
+	if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK) {
+		/*Error occurred while page erase.*/
+		return;
+	}
+
+	for (uint8_t i = 0; i <sizeof(VDRLZ_Input) ; i+=4)
+	{
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Addr + i, *(((uint32_t*)&VDRLZ)+i/4));
+	}
+}
+
+void FLASH_ReadVDRLZ(VDRLZ_Input *readStruct)
+{
+	memcpy(readStruct, (VDRLZ_Input*)0x0801E800, sizeof(VDRLZ_Input));
+}
+

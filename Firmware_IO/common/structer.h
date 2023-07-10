@@ -162,5 +162,23 @@ typedef struct _timer
     uint32_t count;
     uint32_t inc;
 }timer;
+
+typedef struct _VDRLZ_Input
+{
+	float V;
+	float D;
+	float R;
+	float L;
+	float Z;
+}VDRLZ_Input;
+
+typedef enum _VDRLZ_CycleSet
+{
+	V_set,
+	D_set,
+	R_set,
+	L_set,
+	Z_set
+}VDRLZ_CycleSet;
 #pragma pack()
 #endif

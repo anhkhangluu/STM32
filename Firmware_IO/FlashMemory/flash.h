@@ -24,4 +24,8 @@ uint16_t FLASH_ReadCurrentIndex(uint8_t measurementIndex);
 dataMeasure FLASH_ReadDataMeasure(uint8_t measurementIndex, uint8_t hisIndex);
 MeasureValue FLASH_ReadDataCalib(uint8_t measurementIndex);
 MeasureValue FLASH_ReadDataCurrent(uint8_t measurementIndex);
+
+void FLASH_ReadVDRLZ(VDRLZ_Input *readStruct);
+void FLASH_WriteVDRLZ(VDRLZ_Input VDRLZ);
+
 #endif /* INC_EEPROM_EMULATE_H_ */

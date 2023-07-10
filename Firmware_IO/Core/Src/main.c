@@ -27,8 +27,6 @@
 
 #include "fatfs_sd.h"
 
-#include "stdbool.h"
-
 //DHCP
 #include "socket.h"
 #include "wizchip_conf.h"
@@ -115,9 +113,10 @@ TIM_HandleTypeDef htim7;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
-/*----------------------------DHCP-----------------------------*/
-volatile bool ip_assigned = false;
+#define false 	0
+#define true 	1
+/*----------------------------DHCP - MODBUS-----------------------------*/
+volatile uint8_t ip_assigned = false;
 
 uint16_t usRegInputBuf[REG_INPUT_NREGS] = { 0x1000, 0x1001, 0x1002, 0x1003,
 		0x1004, 0x1005, 0x1006, 0x1007 };
@@ -127,14 +126,13 @@ uint8_t ucRegCoilsBuf[REG_COILS_SIZE / 8] = { 0xaa, 0xfe };
 uint8_t ucRegDiscreteBuf[REG_DISCRETE_SIZE / 8] = { 0x98, 0x6e };
 /*---------------------------------------------------*/
 
-
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
 static Time mtime = { 23, 05, 21, 06, 00, 00 };
 
-wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA },
-			.dhcp = NETINFO_DHCP };
+wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
+		NETINFO_DHCP };
 
 static button mbutton;
 static input minput;
@@ -163,16 +161,16 @@ void Callback_IPAssigned(void) {
 	ip_assigned = true;
 }
 void Callback_IPConflict(void) {
-	//TODO
+
 }
 
 static void process_SD_Card(void);
-void W5500_init();
+static void W5500_init();
 
 /*---------------app.c------------*/
 static void app_SettingRtc(void);
-static void app_SettingData(void);
-static void app_GetEeprom(void);
+//static void app_SettingData(void);
+//static void app_GetEeprom(void);
 static void app_Measurement(void);
 static void app_SetCalibValue(uint8_t measurementIndex);
 static void app_GetCalibValue(uint8_t measurementIndex);
@@ -411,24 +409,22 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
-  sTime.Hours = mtime.hour;
-  sTime.Minutes = mtime.minute;
-  sTime.Seconds = 0x0;
-  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sDate.WeekDay = RTC_WEEKDAY_MONDAY;//dont care
-  sDate.Month = mtime.month;
-  sDate.Date = mtime.day;
-  sDate.Year = mtime.year;
+	sTime.Hours = mtime.hour;
+	sTime.Minutes = mtime.minute;
+	sTime.Seconds = 0x0;
+	sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+	sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+		Error_Handler();
+	}
+	sDate.WeekDay = RTC_WEEKDAY_MONDAY; //dont care
+	sDate.Month = mtime.month;
+	sDate.Date = mtime.day;
+	sDate.Year = mtime.year;
 
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
+		Error_Handler();
+	}
 
   /* USER CODE END RTC_Init 2 */
 
@@ -558,7 +554,7 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -805,7 +801,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void W5500_init() {
+static void W5500_init() {
 	uint8_t dns[4];
 	uint8_t dhcp_buffer[1024];
 	reg_wizchip_cs_cbfunc(W5500_Select, W5500_Unselect);
@@ -970,8 +966,7 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 
 static void process_SD_Card(void) {
 	FATFS FatFs;
-	FIL fil;	//file
-	char buff[100];
+	FIL fil;
 
 	do {
 		//mount SD card
@@ -980,20 +975,20 @@ static void process_SD_Card(void) {
 			break;
 		}
 
+#if 0	//turn on this macro if you want to check the free space of SD card
 		//Read size and free space of SD Card
-		FATFS *pfs;
 		DWORD fre_clust;
 		uint32_t totalSpace;
 		uint32_t freeSpace;
 
-		if (f_getfree("", &fre_clust, &pfs) != FR_OK) {
+		if (f_getfree("", &fre_clust, &FatFs) != FR_OK) {
 			break;
 		}
-		totalSpace = (uint32_t) ((pfs->n_fatent - 2) * pfs->csize * 0.5);
-		freeSpace = (uint32_t) (fre_clust * pfs->csize * 0.5);
-
+		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
+		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
+#endif
 		//Open file
-		if (f_open(&fil, "test.txt", FA_READ | FA_OPEN_ALWAYS | FA_WRITE)
+		if (f_open(&fil, "data.csv", FA_READ | FA_OPEN_ALWAYS | FA_WRITE)
 				!= FR_OK) //In this mode, it will create the file if file not existed
 				{
 			break;
@@ -1006,26 +1001,6 @@ static void process_SD_Card(void) {
 		if (f_close(&fil) != FR_OK) {
 			break;
 		}
-
-		//Open file
-		if (f_open(&fil, "test2.txt", FA_READ) != FR_OK) {
-			break; //if file d
-		}
-		//Read data in file
-		f_gets(buff, sizeof(buff), &fil);
-
-		//Close file
-		if (f_close(&fil) != FR_OK) {
-			break;
-		}
-
-#if 0
-		//delete file
-		if(f_unlink("test.txt") != FR_OK)
-		{
-			break;
-		}
-#endif
 
 	} while (0);
 	f_mount(NULL, "", 0); //unmount SD card
@@ -1046,7 +1021,200 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 		}
 	}
 }
+static void app_SettingVDLRZ(void) {
+	VDRLZ_CycleSet cycle = V_set;
+	uint8_t exit = 0;
+	VDRLZ_Input buffer;
 
+	LCD_Clear();
+	do {
+		if (cycle == V_set) {
+			FLASH_ReadVDRLZ(&buffer);
+			screen_setVDRLZ(buffer, cycle);
+			do {
+				mbutton = io_getButton();
+				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
+					buffer.V += 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, V_set);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
+						;
+					buffer.V -= 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, V_set);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.next) {
+					cycle = D_set;
+					while (_ON == io_getButton().next)
+						;
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
+						;
+					exit = 1;
+					break;
+				}
+			} while (cycle == V_set);
+		}
+		if (cycle == D_set) {
+			FLASH_ReadVDRLZ(&buffer);
+			screen_setVDRLZ(buffer, cycle);
+			do {
+				mbutton = io_getButton();
+				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
+					buffer.D += 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
+						;
+					buffer.D -= 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.next) {
+					cycle = L_set;
+					while (_ON == io_getButton().next)
+						;
+				}
+				if (_ON == mbutton.prev) {
+					cycle = V_set;
+					while (_ON == io_getButton().prev)
+						;
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
+						;
+					exit = 1;
+					break;
+				}
+			} while (cycle == D_set);
+		}
+		if (cycle == R_set) {
+			FLASH_ReadVDRLZ(&buffer);
+			screen_setVDRLZ(buffer, cycle);
+			do {
+				mbutton = io_getButton();
+				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
+					buffer.R += 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
+						;
+					buffer.R -= 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.next) {
+					cycle = Z_set;
+					while (_ON == io_getButton().next)
+						;
+				}
+				if (_ON == mbutton.prev) {
+					cycle = L_set;
+					while (_ON == io_getButton().prev)
+						;
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
+						;
+					exit = 1;
+					break;
+				}
+			} while (cycle == R_set);
+		}
+		if (cycle == L_set) {
+			FLASH_ReadVDRLZ(&buffer);
+			screen_setVDRLZ(buffer, cycle);
+			do {
+				mbutton = io_getButton();
+				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
+					buffer.L += 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
+						;
+					buffer.L -= 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.next) {
+					cycle = R_set;
+					while (_ON == io_getButton().next)
+						;
+				}
+				if (_ON == mbutton.prev) {
+					cycle = D_set;
+					while (_ON == io_getButton().prev)
+						;
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
+						;
+					exit = 1;
+					break;
+				}
+			} while (cycle == L_set);
+		}
+		if (cycle == Z_set) {
+			FLASH_ReadVDRLZ(&buffer);
+			screen_setVDRLZ(buffer, cycle);
+			do {
+				mbutton = io_getButton();
+				if (_ON == mbutton.set) {
+					while (_ON == io_getButton().set)
+						;
+					buffer.Z += 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
+						;
+					buffer.Z -= 0.1;
+					FLASH_WriteVDRLZ(buffer);
+					screen_setVDRLZ(buffer, cycle);
+					HAL_Delay(TIME_WAIT);
+				}
+				if (_ON == mbutton.prev) {
+					cycle = R_set;
+					while (_ON == io_getButton().prev)
+						;
+				}
+				if (_ON == mbutton.menu) {
+					while (_ON == io_getButton().menu)
+						;
+					exit = 1;
+					break;
+				}
+			} while (cycle == Z_set);
+		}
+	} while (exit == 0);
+}
 // app.c
 static void app_SettingRtc(void) {
 	CycleTime cycle = SET_YEAR;
@@ -1068,7 +1236,6 @@ static void app_SettingRtc(void) {
 					tmp += 1;
 					if (99 < tmp)
 						tmp = 0;
-					mtime.year = tmp + 2000;
 					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_YEAR);
 					HAL_Delay(TIME_WAIT);
@@ -1078,14 +1245,13 @@ static void app_SettingRtc(void) {
 					while (_ON == io_getButton().next)
 						;
 				}
-				if (_ON == mbutton.prev) {
-					while (_ON == io_getButton().prev)
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
 						;
 					if (0 == tmp)
 						tmp = 99;
 					else
 						tmp--;
-					mtime.year = tmp + 2000;
 					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_YEAR);
 					HAL_Delay(TIME_WAIT);
@@ -1121,8 +1287,8 @@ static void app_SettingRtc(void) {
 					while (_ON == io_getButton().next)
 						;
 				}
-				if (_ON == mbutton.prev) {
-					while (_ON == io_getButton().prev)
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
 						;
 
 					if (1 == mtime.month)
@@ -1133,8 +1299,8 @@ static void app_SettingRtc(void) {
 					screen_setDateTime(mtime, SET_MONTH);
 					HAL_Delay(TIME_WAIT);
 				}
-				if (_ON == mbutton.reset) {
-					while (_ON == io_getButton().reset)
+				if (_ON == mbutton.prev) {
+					while (_ON == io_getButton().prev)
 						;
 					cycle = SET_YEAR;
 				}
@@ -1167,8 +1333,8 @@ static void app_SettingRtc(void) {
 					while (_ON == io_getButton().next)
 						;
 				}
-				if (_ON == mbutton.prev) {
-					while (_ON == io_getButton().prev)
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
 						;
 					mtime.day -= 1;
 					if (0 == mtime.day)
@@ -1177,8 +1343,8 @@ static void app_SettingRtc(void) {
 					screen_setDateTime(mtime, SET_DAY);
 					HAL_Delay(TIME_WAIT);
 				}
-				if (_ON == mbutton.reset) {
-					while (_ON == io_getButton().reset)
+				if (_ON == mbutton.prev) {
+					while (_ON == io_getButton().prev)
 						;
 					cycle = SET_MONTH;
 				}
@@ -1212,8 +1378,8 @@ static void app_SettingRtc(void) {
 						;
 				}
 
-				if (_ON == mbutton.prev) {
-					while (_ON == io_getButton().prev)
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
 						;
 					if (0 == mtime.hour)
 						mtime.hour = 23;
@@ -1223,8 +1389,8 @@ static void app_SettingRtc(void) {
 					screen_setDateTime(mtime, SET_HOUR);
 					HAL_Delay(TIME_WAIT);
 				}
-				if (_ON == mbutton.reset) {
-					while (_ON == io_getButton().reset)
+				if (_ON == mbutton.prev) {
+					while (_ON == io_getButton().prev)
 						;
 					cycle = SET_DAY;
 				}
@@ -1253,13 +1419,13 @@ static void app_SettingRtc(void) {
 					screen_setDateTime(mtime, SET_MINUTE);
 					HAL_Delay(TIME_WAIT);
 				}
-				if (_ON == mbutton.reset) {
+				if (_ON == mbutton.prev) {
 					cycle = SET_HOUR;
-					while (_ON == io_getButton().next)
+					while (_ON == io_getButton().prev)
 						;
 				}
-				if (_ON == mbutton.prev) {
-					while (_ON == io_getButton().prev)
+				if (_ON == mbutton.reset) {
+					while (_ON == io_getButton().reset)
 						;
 					if (0 == mtime.minute)
 						mtime.minute = 59;
@@ -1287,7 +1453,7 @@ static void app_SettingRtc(void) {
 	}
 }
 
-static void app_Measurement(void) {
+static void app_Measurement(void) { //TODO: adding app_Measurement_2
 	CycleMeasure cycleMeasure = STOP;
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
@@ -1442,7 +1608,8 @@ static void app_Measurement(void) {
 				app_SetCurrentMeasureValue(MEASUREMENT_1);
 				mdata.mode = ZONLY;
 				app_CalculatorValue(cycleMeasure, mdata.mode);
-				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1, NOT_SHOW_HIS);
+				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
+						NOT_SHOW_HIS);
 				cycleMeasure = Z_OK;
 				getInput = GET_BUTTON;
 				XStatus = SENSORCHANGE;
@@ -1458,7 +1625,8 @@ static void app_Measurement(void) {
 				cycleMeasure = Z_NOT_OK;
 				getInput = GET_SENSOR;
 				mdata.mode = ZERROR1;
-				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1, NOT_SHOW_HIS);
+				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
+						NOT_SHOW_HIS);
 				//delay(100);
 //                DBG("C=2 MEASURE Z NOT OK\n");
 			}
@@ -1670,7 +1838,8 @@ static void app_Measurement(void) {
 				mdata.mode = ZERROR2;
 			}
 			app_CalculatorValue(cycleMeasure, mdata.mode);
-			screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1, NOT_SHOW_HIS);
+			screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
+					NOT_SHOW_HIS);
 //            DBG("cycleMeasure = FINISH C=5\n");
 		}
 	} while (0 == GET_IN0);
@@ -1727,12 +1896,14 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 	double db_anpha2 = 0;
 	double db_beta2 = 0;
 
-	double db_Vrb1 = 20.0; /* mm/s */
-	double db_Vrb2 = 20.0; /* mm/s */
-	double db_R = 20.0; /* mm */
-	double db_D = 20.0; /* mm */
-	double db_a = 1.2; /* mm */
-	double db_b = 1.2; /* mm */
+//	double db_Vrb1 = 20.0; /* mm/s */
+//	double db_Vrb2 = 20.0; /* mm/s */
+//	double db_R = 20.0; /* mm */
+//	double db_D = 20.0; /* mm */
+//	double db_a = 1.2; /* mm */
+//	double db_b = 1.2; /* mm */
+	VDRLZ_Input buffer;
+	FLASH_ReadVDRLZ(&buffer);
 
 	double db_DetaXSS1 = 0;
 	double db_DetaYSS1 = 0;
@@ -1758,12 +1929,12 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 			db_DetaTZ = ((double) (mmeasureValue.Z - mcalibValue.Z)) * 100
 					/ 1000000.0; /* us/1000000 => s */
 //            DBG("db_DetaTZ = %lf\n",db_DetaTZ);
-			db_DetaZ = db_Vrb2 * db_DetaTZ;
+			db_DetaZ = buffer.V * db_DetaTZ;
 //            DBG("db_DetaZ = %lf\n",db_DetaZ);
 			mdata.coordinates.Z = (int16_t) (db_DetaZ * 100.0);
 //            DBG("Z (db_DetaZ)= %lf\n",db_DetaZ);
 
-			if ((db_DetaZ > db_b) || (db_DetaZ < (-db_b))) {
+			if ((db_DetaZ > buffer.Z) || (db_DetaZ < (-buffer.Z))) {
 				moutput.out3 = _ON;
 			} else {
 				moutput.out3 = _OFF;
@@ -1785,17 +1956,19 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 //            DBG("db_DetaTX2 = %lf\n",db_DetaTX2);
 //            DBG("db_DetaTY2 = %lf\n",db_DetaTY2);
 
-			db_anpha1 = (db_Vrb1 * db_DetaTX1) / db_R;
-			db_beta1 = (db_Vrb1 * db_DetaTY1) / db_R;
-			db_anpha2 = (db_Vrb2 * db_DetaTX2) / db_R;
-			db_beta2 = (db_Vrb2 * db_DetaTY2) / db_R;
+			db_anpha1 = (buffer.V * db_DetaTX1) / buffer.D;
+			db_beta1 = (buffer.V * db_DetaTY1) / buffer.D;
+			db_anpha2 = (buffer.V * db_DetaTX2) / buffer.D;
+			db_beta2 = (buffer.V * db_DetaTY2) / buffer.D;
 //            DBG("db_anpha1 = %lf\n",db_anpha1);
 //            DBG("db_beta1 = %lf\n",db_beta1);
 //            DBG("db_anpha2 = %lf\n",db_anpha2);
 //            DBG("db_beta2 = %lf\n",db_beta2);
 
-			db_DetaXSS1 = (2 * db_R) * sin(db_anpha1 / 2) * cos(db_anpha1 / 2);
-			db_DetaYSS1 = (2 * db_R) * sin(db_beta1 / 2) * cos(db_beta1 / 2);
+			db_DetaXSS1 = (2 * buffer.D) * sin(db_anpha1 / 2)
+					* cos(db_anpha1 / 2);
+			db_DetaYSS1 = (2 * buffer.D) * sin(db_beta1 / 2)
+					* cos(db_beta1 / 2);
 			db_DetaXRB1 = db_DetaXSS1 * cos(3.142 / 4);
 			db_DetaYRB1 = db_DetaYSS1 * cos(3.142 / 4);
 //            DBG("db_DetaXSS1 = %lf\n",db_DetaXSS1);
@@ -1803,8 +1976,10 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 //            DBG("db_DetaXRB1 = %lf\n",db_DetaXRB1);
 //            DBG("db_DetaYRB1 = %lf\n",db_DetaYRB1);
 
-			db_DetaXSS2 = (2 * db_R) * sin(db_anpha2 / 2) * cos(db_anpha2 / 2);
-			db_DetaYSS2 = (2 * db_R) * sin(db_beta2 / 2) * cos(db_beta2 / 2);
+			db_DetaXSS2 = (2 * buffer.D) * sin(db_anpha2 / 2)
+					* cos(db_anpha2 / 2);
+			db_DetaYSS2 = (2 * buffer.D) * sin(db_beta2 / 2)
+					* cos(db_beta2 / 2);
 			db_DetaXRB2 = db_DetaXSS2 * cos(3.142 / 4);
 			db_DetaYRB2 = db_DetaYSS2 * cos(3.142 / 4);
 //            DBG("db_DetaXSS2 = %lf\n",db_DetaXSS2);
@@ -1819,10 +1994,14 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 //            DBG("db_r1 = %lf\n",db_r1);
 //            DBG("db_r2 = %lf\n",db_r2);
 
-			db_LXSS = (atan((db_DetaXSS2 - db_DetaXSS1) / db_D) * 180) / 3.142;
-			db_LYSS = (atan((db_DetaYSS2 - db_DetaYSS1) / db_D) * 180) / 3.142;
-			db_LXRB = (atan((db_DetaXRB2 - db_DetaXRB1) / db_D) * 180) / 3.142;
-			db_LYRB = (atan((db_DetaYRB2 - db_DetaYRB1) / db_D) * 180) / 3.142;
+			db_LXSS = (atan((db_DetaXSS2 - db_DetaXSS1) / buffer.L) * 180)
+					/ 3.142;
+			db_LYSS = (atan((db_DetaYSS2 - db_DetaYSS1) / buffer.L) * 180)
+					/ 3.142;
+			db_LXRB = (atan((db_DetaXRB2 - db_DetaXRB1) / buffer.L) * 180)
+					/ 3.142;
+			db_LYRB = (atan((db_DetaYRB2 - db_DetaYRB1) / buffer.L) * 180)
+					/ 3.142;
 //            DBG("db_LXSS = %lf\n",db_LXSS);
 //            DBG("db_LYSS = %lf\n",db_LYSS);
 //            DBG("db_LXRB = %lf\n",db_LXRB);
@@ -1841,7 +2020,7 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 //            DBG("B (db_LYRB)= %lf\n",db_LYRB);
 //            DBG("X1 (db_DetaXRB1)= %lf\n",db_DetaXRB1);
 //            DBG("Y1 (db_DetaYRB1)= %lf\n",db_DetaYRB1);
-			if (db_r2 > db_a) {
+			if (db_r2 > buffer.R) {
 				moutput.out2 = _ON;
 			} else {
 				moutput.out2 = _OFF;
@@ -1944,7 +2123,6 @@ static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	case measurement2Setting:
 		//main screen 2
 		break;
-
 	case measurement1HisList:
 		app_HisValue(MEASUREMENT_1);
 		break;
@@ -1952,7 +2130,7 @@ static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 		app_HisValue(MEASUREMENT_2);
 		break;
 	case VDLRZinput:
-
+		app_SettingVDLRZ();
 		break;
 	case timeSetting:
 		app_SettingRtc();
@@ -1965,19 +2143,17 @@ static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	}
 }
 
-static void app_ShowIP(void)
-{
+static void app_ShowIP(void) {
 	uint8_t exit = 0;
 	screen_showIP(&net_info);
-	do
-	{
+	do {
 		mbutton = io_getButton();
 		if (mbutton.menu == _ON) {
 			while (_ON == io_getButton().menu)
 				;
 			exit = 1;
 		}
-	}while (exit == 0);
+	} while (exit == 0);
 }
 
 static void app_HisValue(uint8_t measurementIndex) {
@@ -2009,7 +2185,8 @@ static void app_HisValue(uint8_t measurementIndex) {
 				index = 0;
 
 			ldata = FLASH_ReadDataMeasure(measurementIndex, index);
-			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex, SHOW_HIS);
+			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
+					SHOW_HIS);
 		}
 		if (_ON == mbutton.prev) {
 			while (_ON == io_getButton().prev)
@@ -2028,7 +2205,8 @@ static void app_HisValue(uint8_t measurementIndex) {
 			}
 
 			ldata = FLASH_ReadDataMeasure(measurementIndex, index);
-			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex, SHOW_HIS);
+			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
+					SHOW_HIS);
 		}
 		if (_ON == mbutton.set) {
 			while (_ON == io_getButton().set)
@@ -2040,17 +2218,20 @@ static void app_HisValue(uint8_t measurementIndex) {
 				if (mbutton.next == _ON) {
 					while (_ON == io_getButton().next)
 						;
-					screen_DataMeasureType2(ldata, CALIBSET, measurementIndex, SHOW_HIS);
+					screen_DataMeasureType2(ldata, CALIBSET, measurementIndex,
+							SHOW_HIS);
 				}
 				if (mbutton.prev == _ON) {
 					while (_ON == io_getButton().prev)
 						;
-					screen_DataMeasureType1(ldata, CALIBSET, measurementIndex, SHOW_HIS);
+					screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
+							SHOW_HIS);
 				}
 				if (mbutton.reset == _ON) {
 					while (_ON == io_getButton().reset)
 						;
-					screen_DataMeasureType1(ldata, CALIBSET, measurementIndex, SHOW_HIS);
+					screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
+							SHOW_HIS);
 					tempExit = 1;
 				}
 			} while (tempExit == 0);
