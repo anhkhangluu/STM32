@@ -6,6 +6,7 @@
  */
 
 #include "flash.h"
+#include "string.h"
 #define TOTAL_BYTE	241 //TODO
 
 static void updateHistoryDataMeasure(uint16_t *ReadBuf, dataMeasure *data,

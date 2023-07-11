@@ -54,23 +54,6 @@
 /* USER CODE BEGIN PD */
 #define TIME_WAIT 100
 
-//#define USART_DEBUG
-#ifdef USART_DEBUG
-#include "stdio.h"
-#include "string.h"
-#define USART_DEBUG_HANDLER		&huart3
-#define PRINT_NETINFO(netInfo) do { 																					\
-  HAL_UART_Transmit(USART_DEBUG_HANDLER, (uint8_t*)NETWORK_MSG, strlen(NETWORK_MSG), 100);											\
-  sprintf(msg, MAC_MSG, netInfo.mac[0], netInfo.mac[1], netInfo.mac[2], netInfo.mac[3], netInfo.mac[4], netInfo.mac[5]);\
-  HAL_UART_Transmit(USART_DEBUG_HANDLER, (uint8_t*)msg, strlen(msg), 100);															\
-  sprintf(msg, IP_MSG, netInfo.ip[0], netInfo.ip[1], netInfo.ip[2], netInfo.ip[3]);										\
-  HAL_UART_Transmit(USART_DEBUG_HANDLER, (uint8_t*)msg, strlen(msg), 100);															\
-  sprintf(msg, NETMASK_MSG, netInfo.sn[0], netInfo.sn[1], netInfo.sn[2], netInfo.sn[3]);								\
-  HAL_UART_Transmit(USART_DEBUG_HANDLER, (uint8_t*)msg, strlen(msg), 100);															\
-  sprintf(msg, GW_MSG, netInfo.gw[0], netInfo.gw[1], netInfo.gw[2], netInfo.gw[3]);										\
-  HAL_UART_Transmit(USART_DEBUG_HANDLER, (uint8_t*)msg, strlen(msg), 100);															\
-} while(0)
-#endif
 #define DHCP_SOCKET     0
 #define SNTP_SOCKET      1
 #define HTTP_SOCKET     0
@@ -93,6 +76,9 @@
 
 #define SHOW_HIS			1
 #define NOT_SHOW_HIS		0
+
+#define MEASUREMENT_1_FILE_NAME		"measurement1.csv"
+#define MEASUREMENT_2_FILE_NAME		"measurement2.csv"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -129,8 +115,8 @@ uint8_t ucRegDiscreteBuf[REG_DISCRETE_SIZE / 8] = { 0x98, 0x6e };
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
-static Time mtime = { 23, 05, 21, 06, 00, 00 };
-uint8_t mainScreenFlag = 0;
+static Time mtime = { 23, 07, 12, 06, 00, 00 };
+uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
 
@@ -165,7 +151,7 @@ void Callback_IPConflict(void) {
 
 }
 
-static void process_SD_Card(void);
+static void process_SD_Card(dataMeasure data, char *fileName);
 static void W5500_init();
 
 /*---------------app.c------------*/
@@ -179,7 +165,6 @@ static void app_GetCalibValue(uint8_t measurementIndex);
 static void app_CalculatorValue(CycleMeasure lcycleMeasure, uint8_t mode);
 static void app_HisValue(uint8_t measurementIndex);
 static void app_ClearAllOutput(void);
-static void app_GotoMainScreen(uint8_t option);
 static void app_SetCurrentMeasureValue(uint8_t measurementIndex);
 static void app_GetCurrentMeasureValue(uint8_t measurementIndex);
 static void app_TrigerOutputON(void);
@@ -187,6 +172,8 @@ static void app_TrigerOutputOFF(void);
 static optionScreen_e_t app_optionMenu(void);
 static void app_processOptionMenu(optionScreen_e_t optionMenu);
 static void app_ShowIP(void);
+static void app_Init(void);
+static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex);
 
 /* USER CODE END PFP */
 
@@ -196,70 +183,68 @@ static void app_ShowIP(void);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
-  /* USER CODE BEGIN 1 */
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
+	/* USER CODE BEGIN 1 */
 	optionScreen_e_t currentOption;
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_SPI1_Init();
-  MX_SPI2_Init();
-  MX_TIM3_Init();
-  MX_USART2_UART_Init();
-  MX_FATFS_Init();
-  MX_USB_DEVICE_Init();
-  MX_RTC_Init();
-  MX_TIM6_Init();
-  MX_TIM7_Init();
-  /* USER CODE BEGIN 2 */
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_SPI1_Init();
+	MX_SPI2_Init();
+	MX_TIM3_Init();
+	MX_USART2_UART_Init();
+	MX_FATFS_Init();
+	MX_USB_DEVICE_Init();
+	MX_RTC_Init();
+	MX_TIM6_Init();
+	MX_TIM7_Init();
+	/* USER CODE BEGIN 2 */
 
 	HAL_TIM_Base_Start(&htim6); //use for delay_us
 	HAL_TIM_Base_Start_IT(&htim7); //timer interrupt every 100us
 	HAL_TIM_Base_Start(&htim3);
 
-	/*-----app_init------*/ //TODO
-	LCD_Init();
-#if 0
-	process_SD_Card();
-	W5500_init();
-#endif
-	LCD_Clear();
+	app_Init();
+	/* USER CODE END 2 */
 
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
 	while (1) {
-    /* USER CODE END WHILE */
+		/* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
-//	  modbus_tcps(HTTP_SOCKET, MBTCP_PORT);
-		/*app.c*/
-		//TODO: checking flowchart
-//		uint32_t time = 0;
-		mbutton = io_getButton();
+		/* USER CODE BEGIN 3 */
+#if MODBUS
+	  modbus_tcps(HTTP_SOCKET, MBTCP_PORT);
+#endif
 		minput = io_getInput();
+
+		if (menuScreenFlag) {
+			menuScreenFlag = 0;
+			while (_ON == io_getButton().menu)
+				;
+			currentOption = app_optionMenu();
+			app_processOptionMenu(currentOption);
+		}
 
 		if (_ON == minput.in0) {
 			minput.in0 = _OFF;
@@ -270,26 +255,7 @@ int main(void)
 			minput.in1 = _OFF;
 			app_Measurement_2(); //measurement 2
 		}
-
-		uint8_t temp = 0;
-		do
-		{
-
-//			screen_DataMeasureType1(data, setCalib, measIndex, showHisFlag)
-
-		}while(temp == 1);
-
 		//------------------------------------------------------------------------------------------
-		if (mainScreenFlag) {
-
-			if (_ON == mbutton.menu) {
-				while (_ON == io_getButton().menu)
-					;
-				currentOption = app_optionMenu();
-				app_processOptionMenu(currentOption);
-			}
-		}
-
 
 //////////////////////////////////////////////////
 #if 0 //TODO: rewrite
@@ -325,113 +291,106 @@ int main(void)
 #endif
 
 	}
-  /* USER CODE END 3 */
+	/* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+	RCC_PeriphCLKInitTypeDef PeriphClkInit = { 0 };
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48
+			| RCC_OSCILLATORTYPE_LSI;
+	RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+	RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI48;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+	/** Initializes the CPU, AHB and APB buses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI48;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_USART2
-                              |RCC_PERIPHCLK_RTC;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
-  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
+		Error_Handler();
+	}
+	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB
+			| RCC_PERIPHCLK_USART2 | RCC_PERIPHCLK_RTC;
+	PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+	PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+	PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
 
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+		Error_Handler();
+	}
 }
 
 /**
-  * @brief RTC Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_RTC_Init(void)
-{
+ * @brief RTC Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_RTC_Init(void) {
 
-  /* USER CODE BEGIN RTC_Init 0 */
+	/* USER CODE BEGIN RTC_Init 0 */
 
-  /* USER CODE END RTC_Init 0 */
+	/* USER CODE END RTC_Init 0 */
 
-  RTC_TimeTypeDef sTime = {0};
-  RTC_DateTypeDef sDate = {0};
+	RTC_TimeTypeDef sTime = { 0 };
+	RTC_DateTypeDef sDate = { 0 };
 
-  /* USER CODE BEGIN RTC_Init 1 */
+	/* USER CODE BEGIN RTC_Init 1 */
 
-  /* USER CODE END RTC_Init 1 */
+	/* USER CODE END RTC_Init 1 */
 
-  /** Initialize RTC Only
-  */
-  hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
-  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-  if (HAL_RTC_Init(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	/** Initialize RTC Only
+	 */
+	hrtc.Instance = RTC;
+	hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+	hrtc.Init.AsynchPrediv = 127;
+	hrtc.Init.SynchPrediv = 255;
+	hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+	hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+	hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+	if (HAL_RTC_Init(&hrtc) != HAL_OK) {
+		Error_Handler();
+	}
 
-  /* USER CODE BEGIN Check_RTC_BKUP */
+	/* USER CODE BEGIN Check_RTC_BKUP */
 
-  /* USER CODE END Check_RTC_BKUP */
+	/* USER CODE END Check_RTC_BKUP */
 
-  /** Initialize RTC and set the Time and Date
-  */
-  sTime.Hours = 0x10;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x1;
-  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-  sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 0x1;
-  sDate.Year = 0x1;
+	/** Initialize RTC and set the Time and Date
+	 */
+	sTime.Hours = 0x10;
+	sTime.Minutes = 0x0;
+	sTime.Seconds = 0x1;
+	sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+	sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+		Error_Handler();
+	}
+	sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+	sDate.Month = RTC_MONTH_JANUARY;
+	sDate.Date = 0x1;
+	sDate.Year = 0x1;
 
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN RTC_Init 2 */
+	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN RTC_Init 2 */
 	sTime.Hours = mtime.hour;
 	sTime.Minutes = mtime.minute;
 	sTime.Seconds = 0x0;
@@ -449,378 +408,365 @@ static void MX_RTC_Init(void)
 		Error_Handler();
 	}
 
-  /* USER CODE END RTC_Init 2 */
+	/* USER CODE END RTC_Init 2 */
 
 }
 
 /**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
+ * @brief SPI1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI1_Init(void) {
 
-  /* USER CODE BEGIN SPI1_Init 0 */
+	/* USER CODE BEGIN SPI1_Init 0 */
 
-  /* USER CODE END SPI1_Init 0 */
+	/* USER CODE END SPI1_Init 0 */
 
-  /* USER CODE BEGIN SPI1_Init 1 */
+	/* USER CODE BEGIN SPI1_Init 1 */
 
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 7;
-  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
+	/* USER CODE END SPI1_Init 1 */
+	/* SPI1 parameter configuration*/
+	hspi1.Instance = SPI1;
+	hspi1.Init.Mode = SPI_MODE_MASTER;
+	hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi1.Init.NSS = SPI_NSS_SOFT;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi1.Init.CRCPolynomial = 7;
+	hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+	hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN SPI1_Init 2 */
 
-  /* USER CODE END SPI1_Init 2 */
+	/* USER CODE END SPI1_Init 2 */
 
 }
 
 /**
-  * @brief SPI2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI2_Init(void)
-{
+ * @brief SPI2 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI2_Init(void) {
 
-  /* USER CODE BEGIN SPI2_Init 0 */
+	/* USER CODE BEGIN SPI2_Init 0 */
 
-  /* USER CODE END SPI2_Init 0 */
+	/* USER CODE END SPI2_Init 0 */
 
-  /* USER CODE BEGIN SPI2_Init 1 */
+	/* USER CODE BEGIN SPI2_Init 1 */
 
-  /* USER CODE END SPI2_Init 1 */
-  /* SPI2 parameter configuration*/
-  hspi2.Instance = SPI2;
-  hspi2.Init.Mode = SPI_MODE_MASTER;
-  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi2.Init.CRCPolynomial = 7;
-  hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  if (HAL_SPI_Init(&hspi2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI2_Init 2 */
+	/* USER CODE END SPI2_Init 1 */
+	/* SPI2 parameter configuration*/
+	hspi2.Instance = SPI2;
+	hspi2.Init.Mode = SPI_MODE_MASTER;
+	hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi2.Init.NSS = SPI_NSS_SOFT;
+	hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+	hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi2.Init.CRCPolynomial = 7;
+	hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+	hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+	if (HAL_SPI_Init(&hspi2) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN SPI2_Init 2 */
 
-  /* USER CODE END SPI2_Init 2 */
+	/* USER CODE END SPI2_Init 2 */
 
 }
 
 /**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM3_Init(void)
-{
+ * @brief TIM3 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM3_Init(void) {
 
-  /* USER CODE BEGIN TIM3_Init 0 */
+	/* USER CODE BEGIN TIM3_Init 0 */
 
-  /* USER CODE END TIM3_Init 0 */
+	/* USER CODE END TIM3_Init 0 */
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
+	TIM_ClockConfigTypeDef sClockSourceConfig = { 0 };
+	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
+	TIM_OC_InitTypeDef sConfigOC = { 0 };
 
-  /* USER CODE BEGIN TIM3_Init 1 */
+	/* USER CODE BEGIN TIM3_Init 1 */
 
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_OC_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
+	/* USER CODE END TIM3_Init 1 */
+	htim3.Instance = TIM3;
+	htim3.Init.Prescaler = 0;
+	htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim3.Init.Period = 65535;
+	htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+	htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(&htim3) != HAL_OK) {
+		Error_Handler();
+	}
+	sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+	if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK) {
+		Error_Handler();
+	}
+	if (HAL_TIM_OC_Init(&htim3) != HAL_OK) {
+		Error_Handler();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig)
+			!= HAL_OK) {
+		Error_Handler();
+	}
+	sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
+	sConfigOC.Pulse = 0;
+	sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+	sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+	if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN TIM3_Init 2 */
 
-  /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
+	/* USER CODE END TIM3_Init 2 */
+	HAL_TIM_MspPostInit(&htim3);
 
 }
 
 /**
-  * @brief TIM6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM6_Init(void)
-{
+ * @brief TIM6 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM6_Init(void) {
 
-  /* USER CODE BEGIN TIM6_Init 0 */
+	/* USER CODE BEGIN TIM6_Init 0 */
 
-  /* USER CODE END TIM6_Init 0 */
+	/* USER CODE END TIM6_Init 0 */
 
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
+	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
 
-  /* USER CODE BEGIN TIM6_Init 1 */
+	/* USER CODE BEGIN TIM6_Init 1 */
 
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 47;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 65535;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM6_Init 2 */
+	/* USER CODE END TIM6_Init 1 */
+	htim6.Instance = TIM6;
+	htim6.Init.Prescaler = 47;
+	htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim6.Init.Period = 65535;
+	htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(&htim6) != HAL_OK) {
+		Error_Handler();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig)
+			!= HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN TIM6_Init 2 */
 
-  /* USER CODE END TIM6_Init 2 */
+	/* USER CODE END TIM6_Init 2 */
 
 }
 
 /**
-  * @brief TIM7 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM7_Init(void)
-{
+ * @brief TIM7 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM7_Init(void) {
 
-  /* USER CODE BEGIN TIM7_Init 0 */
+	/* USER CODE BEGIN TIM7_Init 0 */
 
-  /* USER CODE END TIM7_Init 0 */
+	/* USER CODE END TIM7_Init 0 */
 
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
+	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
 
-  /* USER CODE BEGIN TIM7_Init 1 */
+	/* USER CODE BEGIN TIM7_Init 1 */
 
-  /* USER CODE END TIM7_Init 1 */
-  htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 47;
-  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 100-1;
-  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM7_Init 2 */
+	/* USER CODE END TIM7_Init 1 */
+	htim7.Instance = TIM7;
+	htim7.Init.Prescaler = 47;
+	htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim7.Init.Period = 100 - 1;
+	htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+	if (HAL_TIM_Base_Init(&htim7) != HAL_OK) {
+		Error_Handler();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig)
+			!= HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN TIM7_Init 2 */
 
-  /* USER CODE END TIM7_Init 2 */
+	/* USER CODE END TIM7_Init 2 */
 
 }
 
 /**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART2_UART_Init(void)
-{
+ * @brief USART2 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_USART2_UART_Init(void) {
 
-  /* USER CODE BEGIN USART2_Init 0 */
+	/* USER CODE BEGIN USART2_Init 0 */
 
-  /* USER CODE END USART2_Init 0 */
+	/* USER CODE END USART2_Init 0 */
 
-  /* USER CODE BEGIN USART2_Init 1 */
+	/* USER CODE BEGIN USART2_Init 1 */
 
-  /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 38400;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_RS485Ex_Init(&huart2, UART_DE_POLARITY_HIGH, 0, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART2_Init 2 */
+	/* USER CODE END USART2_Init 1 */
+	huart2.Instance = USART2;
+	huart2.Init.BaudRate = 38400;
+	huart2.Init.WordLength = UART_WORDLENGTH_8B;
+	huart2.Init.StopBits = UART_STOPBITS_1;
+	huart2.Init.Parity = UART_PARITY_NONE;
+	huart2.Init.Mode = UART_MODE_TX_RX;
+	huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+	huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+	huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+	if (HAL_RS485Ex_Init(&huart2, UART_DE_POLARITY_HIGH, 0, 0) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN USART2_Init 2 */
 
-  /* USER CODE END USART2_Init 2 */
+	/* USER CODE END USART2_Init 2 */
 
 }
 
 /**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_GPIO_Init(void) {
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+	/* USER CODE BEGIN MX_GPIO_Init_1 */
+	/* USER CODE END MX_GPIO_Init_1 */
 
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
+	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOE_CLK_ENABLE();
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+	__HAL_RCC_GPIOF_CLK_ENABLE();
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+	__HAL_RCC_GPIOD_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|OUT3_Pin
-                          |OUT4_Pin|OUT5_Pin|OUT6_Pin|OUT7_Pin
-                          |GPIO_PIN_0|GPIO_PIN_1, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOE,
+			GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | OUT3_Pin | OUT4_Pin
+					| OUT5_Pin | OUT6_Pin | OUT7_Pin | GPIO_PIN_0 | GPIO_PIN_1,
+			GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_SET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_SET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, W5500_CS_Pin|LED3_Pin|LED4_Pin, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOA, W5500_CS_Pin | LED3_Pin | LED4_Pin,
+			GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(W5500_RS_GPIO_Port, W5500_RS_Pin, GPIO_PIN_SET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(W5500_RS_GPIO_Port, W5500_RS_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, OUT0_Pin|OUT1_Pin|OUT2_Pin|GPIO_PIN_8
-                          |GPIO_PIN_9, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOB,
+			OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8 | GPIO_PIN_9,
+			GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, LED1_Pin|LED2_Pin, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOC, LED1_Pin | LED2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PE2 PE4 PE5 PE6
-                           OUT3_Pin OUT4_Pin OUT5_Pin OUT6_Pin
-                           OUT7_Pin PE0 PE1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |OUT3_Pin|OUT4_Pin|OUT5_Pin|OUT6_Pin
-                          |OUT7_Pin|GPIO_PIN_0|GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+	/*Configure GPIO pins : PE2 PE4 PE5 PE6
+	 OUT3_Pin OUT4_Pin OUT5_Pin OUT6_Pin
+	 OUT7_Pin PE0 PE1 */
+	GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6
+			| OUT3_Pin | OUT4_Pin | OUT5_Pin | OUT6_Pin | OUT7_Pin | GPIO_PIN_0
+			| GPIO_PIN_1;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : W5500_CS_Pin LED3_Pin LED4_Pin */
-  GPIO_InitStruct.Pin = W5500_CS_Pin|LED3_Pin|LED4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+	/*Configure GPIO pins : W5500_CS_Pin LED3_Pin LED4_Pin */
+	GPIO_InitStruct.Pin = W5500_CS_Pin | LED3_Pin | LED4_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : W5500_INT_Pin BT_SET_Pin BT_RESERVED_Pin */
-  GPIO_InitStruct.Pin = W5500_INT_Pin|BT_SET_Pin|BT_RESERVED_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+	/*Configure GPIO pins : W5500_INT_Pin BT_SET_Pin BT_RESERVED_Pin */
+	GPIO_InitStruct.Pin = W5500_INT_Pin | BT_SET_Pin | BT_RESERVED_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : W5500_RS_Pin LED1_Pin LED2_Pin */
-  GPIO_InitStruct.Pin = W5500_RS_Pin|LED1_Pin|LED2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+	/*Configure GPIO pins : W5500_RS_Pin LED1_Pin LED2_Pin */
+	GPIO_InitStruct.Pin = W5500_RS_Pin | LED1_Pin | LED2_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : OUT0_Pin OUT1_Pin OUT2_Pin PB8
-                           PB9 */
-  GPIO_InitStruct.Pin = OUT0_Pin|OUT1_Pin|OUT2_Pin|GPIO_PIN_8
-                          |GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+	/*Configure GPIO pins : OUT0_Pin OUT1_Pin OUT2_Pin PB8
+	 PB9 */
+	GPIO_InitStruct.Pin = OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8
+			| GPIO_PIN_9;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SENSOR0_Pin SENSOR1_Pin */
-  GPIO_InitStruct.Pin = SENSOR0_Pin|SENSOR1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+	/*Configure GPIO pins : SENSOR0_Pin SENSOR1_Pin */
+	GPIO_InitStruct.Pin = SENSOR0_Pin | SENSOR1_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IN7_Pin IN6_Pin IN5_Pin IN4_Pin */
-  GPIO_InitStruct.Pin = IN7_Pin|IN6_Pin|IN5_Pin|IN4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+	/*Configure GPIO pins : IN7_Pin IN6_Pin IN5_Pin IN4_Pin */
+	GPIO_InitStruct.Pin = IN7_Pin | IN6_Pin | IN5_Pin | IN4_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IN3_Pin BT_PREV_Pin BT_NEXT_Pin BT_MENU_Pin
-                           BT_RESET_Pin */
-  GPIO_InitStruct.Pin = IN3_Pin|BT_PREV_Pin|BT_NEXT_Pin|BT_MENU_Pin
-                          |BT_RESET_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+	/*Configure GPIO pins : IN3_Pin BT_PREV_Pin BT_NEXT_Pin BT_MENU_Pin
+	 BT_RESET_Pin */
+	GPIO_InitStruct.Pin = IN3_Pin | BT_PREV_Pin | BT_NEXT_Pin | BT_MENU_Pin
+			| BT_RESET_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IN2_Pin IN1_Pin IN0_Pin */
-  GPIO_InitStruct.Pin = IN2_Pin|IN1_Pin|IN0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+	/*Configure GPIO pins : IN2_Pin IN1_Pin IN0_Pin */
+	GPIO_InitStruct.Pin = IN2_Pin | IN1_Pin | IN0_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SD_CS_Pin */
-  GPIO_InitStruct.Pin = SD_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
+	/*Configure GPIO pin : SD_CS_Pin */
+	GPIO_InitStruct.Pin = SD_CS_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+	/* USER CODE BEGIN MX_GPIO_Init_2 */
+	/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -985,10 +931,12 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 	return eStatus;
 }
 
-static void process_SD_Card(void) {
+static void process_SD_Card(dataMeasure data, char *fileName) {
 	FATFS FatFs;
 	FIL fil;
-	f_mount(&FatFs, "", 0);//mount SD card
+	char buff[110];
+	uint8_t BytesWr;
+	f_mount(&FatFs, "", 0); //mount SD card
 #if 0	//turn on this macro if you want to check the free space of SD card
 		//Read size and free space of SD Card
 		DWORD fre_clust;
@@ -1001,8 +949,15 @@ static void process_SD_Card(void) {
 		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
-	f_open(&fil, "data.csv", FA_READ | FA_OPEN_ALWAYS | FA_WRITE);//In this mode, it will create the file if file not existed
-	f_puts("This is a sample", &fil);//write to file
+	f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE); //In this mode, it will create the file if file not existed
+	sprintf(buff,
+			"20%02d-%02d-%02d %02d:%02d  R =%d; X =%d; Y =%d; Z =%d; A =%d ; B =%d; mode =%d\r\n",
+			data.time.year, data.time.month, data.time.day, data.time.hour,
+			data.time.minute, data.coordinates.R, data.coordinates.X,
+			data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
+			data.coordinates.aY, data.mode);
+	f_lseek(&fil, f_size(&fil));
+	f_write(&fil, buff, strlen(buff), (void*) &BytesWr);
 	f_close(&fil);
 	f_mount(NULL, "", 0);
 }
@@ -1214,6 +1169,9 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == Z_set);
 		}
 	} while (exit == 0);
+
+	if(exit)
+		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 // app.c
 static void app_SettingRtc(void) {
@@ -1445,12 +1403,8 @@ static void app_SettingRtc(void) {
 			} while (SET_MINUTE == cycle);
 		}
 	} while (0 == exit);
-
-	if (CALIBSET == msetCalibValue_1) {
-		app_GotoMainScreen(CALIBSET);
-	} else {
-		app_GotoMainScreen(CALIBRESET);
-	}
+	if(exit)
+		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
 static void app_Measurement_1(void) {
@@ -1503,23 +1457,23 @@ static void app_Measurement_1(void) {
 		/*Waiting clear Sensor*/
 		if ((CLEARSENSOR == cycleMeasure)
 				&& (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR))) {
-				if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
-					moutput.rl1 = _OFF;
-					moutput.out0 = _ON;
-					moutput.out1 = _OFF;
-					io_setOutput(moutput);
-					msensor.s0 = _OFF;
-					msensor.s1 = _OFF;
-					cycleMeasure = WAITMEASUREZ;
+			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
+				moutput.rl1 = _OFF;
+				moutput.out0 = _ON;
+				moutput.out1 = _OFF;
+				io_setOutput(moutput);
+				msensor.s0 = _OFF;
+				msensor.s1 = _OFF;
+				cycleMeasure = WAITMEASUREZ;
 //                DBG("SENSOR OK\n");
-				} else {
-					moutput.rl1 = _OFF;
-					moutput.out0 = _OFF;
-					moutput.out1 = _OFF;
-					io_setOutput(moutput);
-					cycleMeasure = ERROR;
+			} else {
+				moutput.rl1 = _OFF;
+				moutput.out0 = _OFF;
+				moutput.out1 = _OFF;
+				io_setOutput(moutput);
+				cycleMeasure = ERROR;
 //                DBG("SENSOR NOT OK\n");
-				}
+			}
 			getInput = GET_SENSOR;
 		}
 		/********************************************## 4 ##*******************************************/
@@ -1598,12 +1552,12 @@ static void app_Measurement_1(void) {
 				mdata.mode = ZONLY;
 				app_CalculatorValue(cycleMeasure, mdata.mode);
 				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
-								NOT_SHOW_HIS);
+				NOT_SHOW_HIS);
 				cycleMeasure = Z_OK;
 				getInput = GET_BUTTON;
 				XStatus = SENSORCHANGE;
 				YStatus = SENSORCHANGE;
-				//TODO: Write mmeasureValue to SD_card
+				process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
 //                DBG("C=2 MEASURE Z OK\n");
 			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
@@ -1616,7 +1570,7 @@ static void app_Measurement_1(void) {
 				getInput = GET_SENSOR;
 				mdata.mode = ZERROR1;
 				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
-								NOT_SHOW_HIS);
+				NOT_SHOW_HIS);
 				//delay(100);
 //                DBG("C=2 MEASURE Z NOT OK\n");
 			}
@@ -1829,8 +1783,8 @@ static void app_Measurement_1(void) {
 			}
 			app_CalculatorValue(cycleMeasure, mdata.mode);
 			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
-					NOT_SHOW_HIS);
-			//TODO: write 2 SD
+			NOT_SHOW_HIS);
+			process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
 //            DBG("cycleMeasure = FINISH C=5\n");
 		}
 	} while (0 == GET_IN0);
@@ -1855,11 +1809,409 @@ static void app_Measurement_1(void) {
 	}
 }
 
-static void app_Measurement_2(void)
-{
-	//TODO
-}
+static void app_Measurement_2(void) {
 
+	CycleMeasure cycleMeasure = STOP;
+	CycleMeasureSensor cycleMeasureX = SEN_STOP;
+	CycleMeasureSensor cycleMeasureY = SEN_STOP;
+	CycleMeasureSensor cycleMeasureZ = SEN_STOP;
+	SensorChange XStatus = SENSORNOCHANGE;
+	SensorChange YStatus = SENSORNOCHANGE;
+	GetInputType getInput = GET_SENSOR;
+
+	mdata.coordinates.X = 0;
+	mdata.coordinates.Y = 0;
+	mdata.coordinates.Z = 0;
+	mdata.coordinates.aX = 0;
+	mdata.coordinates.aY = 0;
+	mdata.mode = NONE;
+
+	mmeasureValue.X1 = 0;
+	mmeasureValue.Y1 = 0;
+	mmeasureValue.X2 = 0;
+	mmeasureValue.Y2 = 0;
+	mmeasureValue.Z = 0;
+
+	do {
+		if (GET_BUTTON == getInput) {
+			mbutton = io_getButton();
+			minput = io_getInput();
+		} else {
+			minput = io_getInput();
+			msensor = io_getSensor();
+		}
+		/********************************************## 1 ##*******************************************/
+		/*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
+		if ((STOP == cycleMeasure) && (_ON == GET_IN1)) // X10=ON
+				{
+			app_ClearAllOutput();
+			minput.in0 = _OFF;
+			cycleMeasure = CLEARSENSOR;
+			getInput = GET_SENSOR;
+			timer_Start(TIMER_CLEARSENSOR, TIMERCLEARSENSOR);
+			moutput.out0 = _OFF;
+			moutput.out1 = _OFF;
+			moutput.rl1 = _ON;
+			io_setOutput(moutput);
+//            DBG("cycleMeasure = CLEARSENSOR\n");
+		}
+		/********************************************## 2 ##*******************************************/
+		/********************************************## 3 ##*******************************************/
+		/*Waiting clear Sensor*/
+		if ((CLEARSENSOR == cycleMeasure)
+				&& (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR))) {
+			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
+				moutput.rl1 = _OFF; //todo rl1/rl2
+				moutput.out0 = _ON;
+				moutput.out1 = _OFF;
+				io_setOutput(moutput);
+				msensor.s0 = _OFF;
+				msensor.s1 = _OFF;
+				cycleMeasure = WAITMEASUREZ;
+//                DBG("SENSOR OK\n");
+			} else {
+				moutput.rl1 = _OFF;
+				moutput.out0 = _OFF;
+				moutput.out1 = _OFF;
+				io_setOutput(moutput);
+				cycleMeasure = ERROR;
+//                DBG("SENSOR NOT OK\n");
+			}
+			getInput = GET_SENSOR;
+		}
+		/********************************************## 4 ##*******************************************/
+		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN1)) {
+			minput = io_getInput();
+			if (_ON == minput.in1) //C=1
+					{
+				/*Start couter*/
+				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
+				minput.in1 = _OFF;
+				msensor.s0 = _OFF;
+				msensor.s1 = _OFF;
+				getInput = GET_SENSOR;
+				cycleMeasureZ = SEN_START;
+				cycleMeasure = WAITRBSTABLEZ;
+//                DBG("C=1 START TIME MEASURE Z\n");
+			}
+		};
+		while ((WAITRBSTABLEZ == cycleMeasure) && (0 == GET_IN1)) // Waiting 200ms
+		{
+			if (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR)) {
+				/*Start couter*/
+				timer_Start(TIMER_Z, TIMERMAXVALUE);
+				minput.in1 = _OFF;
+				msensor.s0 = _OFF;
+				msensor.s1 = _OFF;
+				getInput = GET_SENSOR;
+				cycleMeasureZ = SEN_START;
+				cycleMeasure = MEASUREZ;
+//                DBG("MEASURE Z\n");
+			}
+		};
+		/*Measure Z*/
+		while ((MEASUREZ == cycleMeasure) && (0 == GET_IN1)) {
+			msensor = io_getSensor();
+			minput = io_getInput();
+			if ((SEN_START == cycleMeasureZ) && (_ON == msensor.s0)) {
+				/*Stop counter X*/
+				mmeasureValue.Z = time_Stop(TIMER_Z);
+				cycleMeasureZ = SEN_FINISH;
+				getInput = GET_SENSOR;
+				cycleMeasure = CHECKZVALUE;
+				XStatus = SENSORCHANGE;
+//                DBG("SENSOR Z = ON\n");
+			}
+			if (_ON == minput.in1) // C=2
+					{
+				if (SEN_START == cycleMeasureZ) {
+					mmeasureValue.Z = 0;
+				}
+				cycleMeasureZ = SEN_FINISH;
+				getInput = GET_SENSOR;
+				cycleMeasure = CHECKZVALUE;
+//                DBG("C=2 END MEASURE Z\n");
+			}
+		};
+		/********************************************## 5 ##*******************************************/
+
+		while (((CHECKZVALUE == cycleMeasure) || (Z_OK == cycleMeasure)
+				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN1)) {
+			msensor = io_getSensor();
+			minput = io_getInput();
+			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
+					&& (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
+					{
+				minput.in1 = _OFF;
+				moutput.out1 = _ON;
+				io_setOutput(moutput);
+				app_GetCurrentMeasureValue(MEASUREMENT_2);
+				time_Stop(TIMER_Z);
+				mmeasureValue.X1 = mCurrentMeasureValue.X1;
+				mmeasureValue.Y1 = mCurrentMeasureValue.Y1;
+				mmeasureValue.X2 = mCurrentMeasureValue.X2;
+				mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
+				app_SetCurrentMeasureValue(MEASUREMENT_2);
+				mdata.mode = ZONLY;
+				app_CalculatorValue(cycleMeasure, mdata.mode);
+				screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
+				NOT_SHOW_HIS);
+				cycleMeasure = Z_OK;
+				getInput = GET_BUTTON;
+				XStatus = SENSORCHANGE;
+				YStatus = SENSORCHANGE;
+				process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
+//                DBG("C=2 MEASURE Z OK\n");
+			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
+					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
+					{
+				minput.in1 = _OFF;
+				moutput.out1 = _OFF;
+				io_setOutput(moutput);
+				time_Stop(TIMER_Z);
+				cycleMeasure = Z_NOT_OK;
+				getInput = GET_SENSOR;
+				mdata.mode = ZERROR1;
+				screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
+				NOT_SHOW_HIS);
+				//delay(100);
+//                DBG("C=2 MEASURE Z NOT OK\n");
+			}
+			if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure))
+					&& (_OFF == minput.in1)) {
+				cycleMeasure = WAITMEASUREX1Y1;
+//                DBG("C=2 cycleMeasure = WAITMEASUREX1Y1\n");
+			}
+		}
+
+		if ((SETVALUEZ == cycleMeasure) && (_ON == mbutton.set)
+				&& (_ON == moutput.out1)) {
+			mledStatus.led3 = _ON;
+			io_setLedStatus(mledStatus);
+			cycleMeasure = WAITMEASUREX1Y1;
+			getInput = GET_SENSOR;
+//            DBG("SET Z\n");
+			app_SetCalibValue(MEASUREMENT_2);
+			app_GetCalibValue(MEASUREMENT_2);
+		}
+		/********************************************## 6 ##*******************************************/
+		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
+		while (((WAITMEASUREX1Y1 == cycleMeasure) || (SETVALUEZ == cycleMeasure))
+				&& (0 == GET_IN1)/*in0 = ON*/) {
+			minput = io_getInput();
+			if (_ON == minput.in1) //C=3
+					{
+				/*Start couter*/
+				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
+				minput.in1 = _OFF;
+				moutput.out0 = _OFF;
+				moutput.out1 = _OFF;
+				io_setOutput(moutput);
+				cycleMeasure = WAITRBSTABLEX1Y1;
+				getInput = GET_SENSOR;
+				cycleMeasureX = SEN_START;
+				cycleMeasureY = SEN_START;
+//                DBG("cycleMeasure = MEASUREX1Y1 C=3\n");
+			}
+		};
+		while ((WAITRBSTABLEX1Y1 == cycleMeasure) && (0 == GET_IN1)) {
+			if (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR)) {
+				/*Start counter*/
+				timer_Start(TIMER_X, TIMERMAXVALUE);
+				timer_Start(TIMER_Y, TIMERMAXVALUE);
+				minput.in1 = _OFF;
+				cycleMeasure = MEASUREX1Y1;
+				getInput = GET_SENSOR;
+				cycleMeasureX = SEN_START;
+				cycleMeasureY = SEN_START;
+//                DBG("Start counter X1, Y1\n");
+			}
+		};
+		while ((MEASUREX1Y1 == cycleMeasure) && (0 == GET_IN1)) {
+			msensor = io_getSensor();
+			minput = io_getInput();
+			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
+				/*Stop couter X*/
+				mmeasureValue.X1 = time_Stop(TIMER_X);
+				msensor.s0 = _OFF;
+				cycleMeasureX = SEN_FINISH;
+				getInput = GET_SENSOR;
+				XStatus = SENSORCHANGE;
+//				DBG("X1 = SEN_FINISH\n");
+				// DBG("mmeasureValue.X1 = %d\n",mmeasureValue.X1);
+			}
+			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
+				/*Stop couter X*/
+				mmeasureValue.Y1 = time_Stop(TIMER_Y);
+				msensor.s1 = _OFF;
+				cycleMeasureY = SEN_FINISH;
+				getInput = GET_SENSOR;
+				YStatus = SENSORCHANGE;
+//				DBG("Y1 = SEN_FINISH\n");
+				// DBG("mmeasureValue.Y1 = %d\n",mmeasureValue.Y1);
+			}
+			if ((SEN_FINISH == cycleMeasureX)
+					&& (SEN_FINISH == cycleMeasureY)) {
+				cycleMeasureX = SEN_STOP;
+				cycleMeasureY = SEN_STOP;
+				cycleMeasure = WAITMEASUREX2Y2;
+				getInput = GET_SENSOR;
+//                DBG("cycleMeasure = WAITMEASUREX2Y2\n");
+			}
+			//if(_ON == minput.in1) //C=4
+			//{
+			//    if(SEN_START == cycleMeasureX)
+			//    {
+			//        mmeasureValue.X1 = 0;
+			//    }
+			//    if(SEN_START == cycleMeasureY)
+			//    {
+			//        mmeasureValue.Y1 = 0;
+			//    }
+			//    cycleMeasureX = SEN_STOP;
+			//    cycleMeasureY = SEN_STOP;
+			//    cycleMeasure = WAITMEASUREX2Y2;
+			//    getInput = GET_SENSOR;
+			//    (void)time_Stop(TIMER_X);
+			//    (void)time_Stop(TIMER_Y);
+			//    DBG("MEASUREX1Y1 == cycleMeasure C=4\n");
+			//}
+		};
+		/********************************************## 7 ##*******************************************/
+		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
+		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
+			minput = io_getInput();
+			if (_ON == minput.in1) // C=4
+					{
+				/*Start couter*/
+				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
+				minput.in1 = _OFF;
+				cycleMeasure = WAITRBSTABLEX2Y2;
+				getInput = GET_SENSOR;
+				cycleMeasureX = SEN_START;
+				cycleMeasureY = SEN_START;
+//                DBG("cycleMeasure = WAITMEASUREX2Y2 C=4\n");
+			}
+		};
+		while ((WAITRBSTABLEX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
+			if (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR)) {
+				/*Start couter*/
+				timer_Start(TIMER_X, TIMERMAXVALUE);
+				timer_Start(TIMER_Y, TIMERMAXVALUE);
+				minput.in1 = _OFF;
+				cycleMeasure = MEASUREX2Y2;
+				getInput = GET_SENSOR;
+				cycleMeasureX = SEN_START;
+				cycleMeasureY = SEN_START;
+//                DBG("Start couter X2, Y2\n");
+			}
+		};
+		while ((MEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
+			msensor = io_getSensor();
+			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
+				/*Stop couter X*/
+				mmeasureValue.X2 = time_Stop(TIMER_X);
+				msensor.s0 = _OFF;
+				cycleMeasureX = SEN_FINISH;
+				getInput = GET_SENSOR;
+				XStatus = SENSORCHANGE;
+//                DBG("X2 = SEN_FINISH\n");
+			}
+			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
+				/*Stop couter X*/
+				mmeasureValue.Y2 = time_Stop(TIMER_Y);
+				msensor.s1 = _OFF;
+				cycleMeasureY = SEN_FINISH;
+				getInput = GET_SENSOR;
+				YStatus = SENSORCHANGE;
+//                DBG("Y2 = SEN_FINISH\n");
+			}
+			if ((SEN_FINISH == cycleMeasureX)
+					&& (SEN_FINISH == cycleMeasureY)) {
+				/*Save D_X1, D_Y1*/
+				cycleMeasureX = SEN_STOP;
+				cycleMeasureY = SEN_STOP;
+				cycleMeasure = WAITSETVALUE;
+				getInput = GET_BUTTON;
+//                DBG("WAITSETVALUE == cycleMeasure\n");
+			}
+			// if(_ON == minput.in1) //C=5
+			// {
+			//     if(SEN_START == cycleMeasureX)
+			//     {
+			//         mmeasureValue.X2 = 0;
+			//     }
+			//     if(SEN_START == cycleMeasureY)
+			//     {
+			//         mmeasureValue.Y2 = 0;
+			//     }
+			//     cycleMeasureX = SEN_STOP;
+			//     cycleMeasureY = SEN_STOP;
+			//     cycleMeasure = CALCULATORVALUE;
+			//     getInput = GET_SENSOR;
+			//     (void)time_Stop(TIMER_X);
+			//     (void)time_Stop(TIMER_Y);
+			// }
+		};
+
+		/*Robot di chuyển tới vị trí P18*/
+		if ((WAITSETVALUE == cycleMeasure) && (_ON == mbutton.set)) {
+			app_GetCalibValue(MEASUREMENT_1);
+			if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
+					&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
+					&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
+				app_SetCalibValue(MEASUREMENT_1);
+				app_GetCalibValue(MEASUREMENT_1);
+				mledStatus.led3 = _ON;
+				msetCalibValue_2 = CALIBSET;
+				io_setLedStatus(mledStatus);
+			}
+			getInput = GET_SENSOR;
+			cycleMeasure = CALCULATORVALUE;
+//            DBG("cycleMeasure = CALCULATORVALUE\n");
+		}
+		/********************************************## 8 ##*******************************************/
+		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
+				&& (_ON == minput.in1)) // C=5
+				{
+			minput.in1 = _OFF;
+			cycleMeasure = FINISH;
+			getInput = GET_BUTTON;
+			/*Calculator Value - Printf to screen*/
+			app_SetCurrentMeasureValue(MEASUREMENT_2);
+			if (ZONLY == mdata.mode) {
+				mdata.mode = MEASUREALL;
+			} else if (ZERROR1 == mdata.mode) {
+				mdata.mode = ZERROR2;
+			}
+			app_CalculatorValue(cycleMeasure, mdata.mode);
+			screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
+			NOT_SHOW_HIS);
+			process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
+//            DBG("cycleMeasure = FINISH C=5\n");
+		}
+	} while (0 == GET_IN1);
+
+	app_TrigerOutputOFF();
+	moutput.out0 = _OFF;
+	moutput.out1 = _OFF;
+	moutput.rl1 = _OFF;
+	moutput.rl2 = _OFF;
+
+	if ((SENSORNOCHANGE == XStatus) || (SENSORNOCHANGE == YStatus)) {
+		moutput.out1 = _ON;
+//        DBG("SENSOR IS NOT CHANGE\n");
+	} else {
+		moutput.out1 = _OFF;
+//        DBG("SENSOR CHANGE\n");
+	}
+	io_setOutput(moutput);
+	app_TrigerOutputON();
+	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_2)) {
+		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_2);
+	}
+
+}
 
 static void app_ClearAllOutput(void) {
 	moutput.out0 = _OFF;
@@ -1912,7 +2264,7 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 	double db_LXRB = 0;
 	double db_LYRB = 0;
 
-	if (CALIBSET == msetCalibValue_1) {
+	if (CALIBSET == msetCalibValue_1) {	//TODO: msetCalibValue_2
 //        DBG("**********************************************************\n")
 		/*calculator Z*/
 		if ((ZONLY == mode) || (MEASUREALL == mode)) {
@@ -2098,6 +2450,7 @@ static optionScreen_e_t app_optionMenu(void) {
 		if (mbutton.menu == _ON) {
 			while (_ON == io_getButton().menu)
 				;
+			optionIndex = measurement1Setting; //go to mainscreen
 			exit = 1;
 		}
 
@@ -2106,16 +2459,12 @@ static optionScreen_e_t app_optionMenu(void) {
 }
 
 static void app_processOptionMenu(optionScreen_e_t optionMenu) {
-//	uint16_t index;
-//	dataMeasure temp;
 	switch (optionMenu) {
 	case measurement1Setting:
-//		index = FLASH_ReadCurrentIndex(MEASUREMENT_1);
-//		temp = FLASH_ReadDataMeasure(MEASUREMENT_1, index); //TODO
+		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 		break;
 	case measurement2Setting:
-//		index = FLASH_ReadCurrentIndex(MEASUREMENT_2);
-//		temp = FLASH_ReadDataMeasure(MEASUREMENT_2, index);
+		app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
 		break;
 	case measurement1HisList:
 		app_HisValue(MEASUREMENT_1);
@@ -2180,7 +2529,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 
 			ldata = FLASH_ReadDataMeasure(measurementIndex, index);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
-					SHOW_HIS);
+			SHOW_HIS);
 		}
 		if (_ON == mbutton.prev) {
 			while (_ON == io_getButton().prev)
@@ -2200,7 +2549,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 
 			ldata = FLASH_ReadDataMeasure(measurementIndex, index);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
-					SHOW_HIS);
+			SHOW_HIS);
 		}
 		if (_ON == mbutton.set) {
 			while (_ON == io_getButton().set)
@@ -2213,19 +2562,19 @@ static void app_HisValue(uint8_t measurementIndex) {
 					while (_ON == io_getButton().next)
 						;
 					screen_DataMeasureType2(ldata, CALIBSET, measurementIndex,
-							SHOW_HIS);
+					SHOW_HIS);
 				}
 				if (mbutton.prev == _ON) {
 					while (_ON == io_getButton().prev)
 						;
 					screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
-							SHOW_HIS);
+					SHOW_HIS);
 				}
 				if (mbutton.reset == _ON) {
 					while (_ON == io_getButton().reset)
 						;
 					screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
-							SHOW_HIS);
+					SHOW_HIS);
 					tempExit = 1;
 				}
 			} while (tempExit == 0);
@@ -2241,35 +2590,89 @@ static void app_HisValue(uint8_t measurementIndex) {
 	mledStatus.led3 = u8_Led3;
 	io_setLedStatus(mledStatus);
 
-	if (CALIBSET == msetCalibValue_1) {
-		app_GotoMainScreen(CALIBSET);
-	} else {
-		app_GotoMainScreen(CALIBRESET);
-	}
+	if(exit)
+		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
-static void app_GotoMainScreen(uint8_t option) {
+static void app_Init(void) {
+	LCD_Init();
+	W5500_init();
+	LCD_Clear();
+	FLASH_ReadDataCalib(MEASUREMENT_1);
+	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0)
+			&& (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0)) {
+		mledStatus.led3 = _OFF;
+		msetCalibValue_1 = CALIBRESET;
+	} else {
+		mledStatus.led3 = _ON;
+		msetCalibValue_1 = CALIBSET;
+	}
+#if 0
+    FLASH_ReadDataCalib(MEASUREMENT_2);
+    if((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0))
+    {
+        mledStatus.led3 = _OFF;
+        msetCalibValue_2 = CALIBRESET;
+    }
+    else
+    {
+        mledStatus.led3 = _ON;
+        msetCalibValue_2 = CALIBSET;
+    }
+#endif
+	io_setLedStatus(mledStatus);
+	app_TrigerOutputON();
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
+}
+
+static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 	uint16_t index;
 	dataMeasure data;
 
-	index = FLASH_ReadCurrentIndex(MEASUREMENT_1);
-	data = FLASH_ReadDataMeasure(MEASUREMENT_1, index);
-	screen_DataMeasureType1(data, option, MEASUREMENT_1, NOT_SHOW_HIS);
+	index = FLASH_ReadCurrentIndex(measurementIndex);
+	if (index == 0)
+		index = 9;
+	else
+		index--;
+	data = FLASH_ReadDataMeasure(measurementIndex, index);
+	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
+	uint8_t exit = 0;
+	do {
+		mbutton = io_getButton();
+		minput = io_getInput();
+		if (mbutton.next == _ON) {
+			while (_ON == io_getButton().next)
+				;
+			screen_DataMeasureType2(data, option, measurementIndex,
+			NOT_SHOW_HIS);
+		}
+		if (mbutton.prev == _ON) {
+			while (_ON == io_getButton().prev)
+				;
+			screen_DataMeasureType1(data, option, measurementIndex,
+			NOT_SHOW_HIS);
+		}
+		if (_ON == mbutton.menu) {
+			while (_ON == io_getButton().menu)
+				;
+			menuScreenFlag = 1;
+			exit = 1;
+		}
+	} while (exit == 1 || _ON == minput.in0 || _ON == minput.in1);
 }
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
+	/* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
 	while (1) {
 	}
-  /* USER CODE END Error_Handler_Debug */
+	/* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
