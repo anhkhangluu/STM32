@@ -221,7 +221,7 @@ void FLASH_WriteDataMeasure(dataMeasure *data, uint8_t measurementIndex)
 	}
 	FLASH_WriteHistoryDataMeasure(data, measurementIndex, index);
 
-	index = (index == 9)? 0:(index+1);
+	index = (index >= 9)? 0:(index+1);
 	FLASH_WriteCurrentIndex(index, measurementIndex); //update index history measurement
 }
 

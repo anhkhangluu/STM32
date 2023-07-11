@@ -130,7 +130,7 @@ uint8_t ucRegDiscreteBuf[REG_DISCRETE_SIZE / 8] = { 0x98, 0x6e };
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
 static Time mtime = { 23, 05, 21, 06, 00, 00 };
-
+uint8_t mainScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
 
@@ -142,7 +142,8 @@ static ledStatus mledStatus;
 static MeasureValue mcalibValue;
 static MeasureValue mCurrentMeasureValue;
 static MeasureValue mmeasureValue;
-static setCalibValue msetCalibValue;
+static setCalibValue msetCalibValue_1; //for measurement1
+static setCalibValue msetCalibValue_2; //for measurement2
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -171,7 +172,8 @@ static void W5500_init();
 static void app_SettingRtc(void);
 //static void app_SettingData(void);
 //static void app_GetEeprom(void);
-static void app_Measurement(void);
+static void app_Measurement_1(void);
+static void app_Measurement_2(void);
 static void app_SetCalibValue(uint8_t measurementIndex);
 static void app_GetCalibValue(uint8_t measurementIndex);
 static void app_CalculatorValue(CycleMeasure lcycleMeasure, uint8_t mode);
@@ -238,8 +240,10 @@ int main(void)
 
 	/*-----app_init------*/ //TODO
 	LCD_Init();
+#if 0
 	process_SD_Card();
 	W5500_init();
+#endif
 	LCD_Clear();
 
   /* USER CODE END 2 */
@@ -259,15 +263,33 @@ int main(void)
 
 		if (_ON == minput.in0) {
 			minput.in0 = _OFF;
-			app_Measurement();
+			app_Measurement_1(); //measurement 1
 		}
+
+		if (_ON == minput.in1) {
+			minput.in1 = _OFF;
+			app_Measurement_2(); //measurement 2
+		}
+
+		uint8_t temp = 0;
+		do
+		{
+
+//			screen_DataMeasureType1(data, setCalib, measIndex, showHisFlag)
+
+		}while(temp == 1);
+
 		//------------------------------------------------------------------------------------------
-		if (_ON == mbutton.menu) {
-			while (_ON == io_getButton().menu)
-				;
-			currentOption = app_optionMenu();
-			app_processOptionMenu(currentOption);
+		if (mainScreenFlag) {
+
+			if (_ON == mbutton.menu) {
+				while (_ON == io_getButton().menu)
+					;
+				currentOption = app_optionMenu();
+				app_processOptionMenu(currentOption);
+			}
 		}
+
 
 //////////////////////////////////////////////////
 #if 0 //TODO: rewrite
@@ -295,7 +317,7 @@ int main(void)
 				eep_ReadDataCalib(&mcalibValue);
 //				DBG("eep_WriteDataCalib(&vl)");
 				mledStatus.led3 = _OFF;
-				msetCalibValue = CALIBRESET;
+				msetCalibValue_1 = CALIBRESET;
 				io_setLedStatus(mledStatus);
 				app_GotoMainScreen(CALIBRESET);
 			}
@@ -818,15 +840,13 @@ static void W5500_init() {
 	reg_dhcp_cbfunc(Callback_IPAssigned, Callback_IPAssigned,
 			Callback_IPConflict);
 
-	uint32_t TimeOut = 1000000;
+	uint32_t current = HAL_GetTick();
 	//get IP assigned
-	while ((!ip_assigned) && (TimeOut > 0)) {
+	while (HAL_GetTick() - current > 1000) {
 		DHCP_run();
-		TimeOut--;
 	}
 
 	if (!ip_assigned) {
-
 		return;
 	}
 
@@ -1426,14 +1446,14 @@ static void app_SettingRtc(void) {
 		}
 	} while (0 == exit);
 
-	if (CALIBSET == msetCalibValue) {
+	if (CALIBSET == msetCalibValue_1) {
 		app_GotoMainScreen(CALIBSET);
 	} else {
 		app_GotoMainScreen(CALIBRESET);
 	}
 }
 
-static void app_Measurement(void) { //TODO: adding app_Measurement_2
+static void app_Measurement_1(void) {
 	CycleMeasure cycleMeasure = STOP;
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
@@ -1483,7 +1503,6 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 		/*Waiting clear Sensor*/
 		if ((CLEARSENSOR == cycleMeasure)
 				&& (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR))) {
-			do {
 				if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
 					moutput.rl1 = _OFF;
 					moutput.out0 = _ON;
@@ -1494,7 +1513,6 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 					cycleMeasure = WAITMEASUREZ;
 //                DBG("SENSOR OK\n");
 				} else {
-					timer_Start(TIMER_CLEARSENSOR, TIMERERRORSENSOR);
 					moutput.rl1 = _OFF;
 					moutput.out0 = _OFF;
 					moutput.out1 = _OFF;
@@ -1502,16 +1520,7 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 					cycleMeasure = ERROR;
 //                DBG("SENSOR NOT OK\n");
 				}
-			} while ((timer_Status(TIMER_CLEARSENSOR) != TIME_FINISH)
-					&& (moutput.out0 == _OFF));
 			getInput = GET_SENSOR;
-
-			if ((timer_Status(TIMER_CLEARSENSOR) == TIME_FINISH)
-					&& (moutput.out0 == _OFF)) {
-				while (1)
-					; //infinitive loop -> system stop
-			}
-
 		}
 		/********************************************## 4 ##*******************************************/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
@@ -1548,7 +1557,7 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 			msensor = io_getSensor();
 			minput = io_getInput();
 			if ((SEN_START == cycleMeasureZ) && (_ON == msensor.s0)) {
-				/*Stop couter X*/
+				/*Stop counter X*/
 				mmeasureValue.Z = time_Stop(TIMER_Z);
 				cycleMeasureZ = SEN_FINISH;
 				getInput = GET_SENSOR;
@@ -1588,7 +1597,7 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 				app_SetCurrentMeasureValue(MEASUREMENT_1);
 				mdata.mode = ZONLY;
 				app_CalculatorValue(cycleMeasure, mdata.mode);
-				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
+				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 								NOT_SHOW_HIS);
 				cycleMeasure = Z_OK;
 				getInput = GET_BUTTON;
@@ -1606,7 +1615,7 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 				cycleMeasure = Z_NOT_OK;
 				getInput = GET_SENSOR;
 				mdata.mode = ZERROR1;
-				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
+				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 								NOT_SHOW_HIS);
 				//delay(100);
 //                DBG("C=2 MEASURE Z NOT OK\n");
@@ -1631,7 +1640,7 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 		/********************************************## 6 ##*******************************************/
 		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
 		while (((WAITMEASUREX1Y1 == cycleMeasure) || (SETVALUEZ == cycleMeasure))
-				&& (0 == GET_IN0)) {
+				&& (0 == GET_IN0)/*in0 = ON*/) {
 			minput = io_getInput();
 			if (_ON == minput.in1) //C=3
 					{
@@ -1797,7 +1806,7 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 				app_SetCalibValue(MEASUREMENT_1);
 				app_GetCalibValue(MEASUREMENT_1);
 				mledStatus.led3 = _ON;
-				msetCalibValue = CALIBSET;
+				msetCalibValue_1 = CALIBSET;
 				io_setLedStatus(mledStatus);
 			}
 			getInput = GET_SENSOR;
@@ -1819,8 +1828,9 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 				mdata.mode = ZERROR2;
 			}
 			app_CalculatorValue(cycleMeasure, mdata.mode);
-			screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
+			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 					NOT_SHOW_HIS);
+			//TODO: write 2 SD
 //            DBG("cycleMeasure = FINISH C=5\n");
 		}
 	} while (0 == GET_IN0);
@@ -1840,10 +1850,16 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 	}
 	io_setOutput(moutput);
 	app_TrigerOutputON();
-	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue)) {
+	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
 		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
 	}
 }
+
+static void app_Measurement_2(void)
+{
+	//TODO
+}
+
 
 static void app_ClearAllOutput(void) {
 	moutput.out0 = _OFF;
@@ -1877,12 +1893,6 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 	double db_anpha2 = 0;
 	double db_beta2 = 0;
 
-//	double db_Vrb1 = 20.0; /* mm/s */
-//	double db_Vrb2 = 20.0; /* mm/s */
-//	double db_R = 20.0; /* mm */
-//	double db_D = 20.0; /* mm */
-//	double db_a = 1.2; /* mm */
-//	double db_b = 1.2; /* mm */
 	VDRLZ_Input buffer;
 	FLASH_ReadVDRLZ(&buffer);
 
@@ -1902,8 +1912,7 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 	double db_LXRB = 0;
 	double db_LYRB = 0;
 
-	mdata.time = rtc_Now();
-	if (CALIBSET == msetCalibValue) {
+	if (CALIBSET == msetCalibValue_1) {
 //        DBG("**********************************************************\n")
 		/*calculator Z*/
 		if ((ZONLY == mode) || (MEASUREALL == mode)) {
@@ -2097,16 +2106,16 @@ static optionScreen_e_t app_optionMenu(void) {
 }
 
 static void app_processOptionMenu(optionScreen_e_t optionMenu) {
-	uint16_t index;
-	dataMeasure temp;
+//	uint16_t index;
+//	dataMeasure temp;
 	switch (optionMenu) {
 	case measurement1Setting:
-		index = FLASH_ReadCurrentIndex(MEASUREMENT_1);
-		temp = FLASH_ReadDataMeasure(MEASUREMENT_1, index);
+//		index = FLASH_ReadCurrentIndex(MEASUREMENT_1);
+//		temp = FLASH_ReadDataMeasure(MEASUREMENT_1, index); //TODO
 		break;
 	case measurement2Setting:
-		index = FLASH_ReadCurrentIndex(MEASUREMENT_2);
-		temp = FLASH_ReadDataMeasure(MEASUREMENT_2, index);
+//		index = FLASH_ReadCurrentIndex(MEASUREMENT_2);
+//		temp = FLASH_ReadDataMeasure(MEASUREMENT_2, index);
 		break;
 	case measurement1HisList:
 		app_HisValue(MEASUREMENT_1);
@@ -2232,7 +2241,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 	mledStatus.led3 = u8_Led3;
 	io_setLedStatus(mledStatus);
 
-	if (CALIBSET == msetCalibValue) {
+	if (CALIBSET == msetCalibValue_1) {
 		app_GotoMainScreen(CALIBSET);
 	} else {
 		app_GotoMainScreen(CALIBRESET);
