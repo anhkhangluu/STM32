@@ -236,7 +236,7 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim7); //timer interrupt every 100us
 	HAL_TIM_Base_Start(&htim3);
 
-	/*-----app_init------*/
+	/*-----app_init------*/ //TODO
 	LCD_Init();
 	process_SD_Card();
 	W5500_init();
@@ -252,6 +252,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 //	  modbus_tcps(HTTP_SOCKET, MBTCP_PORT);
 		/*app.c*/
+		//TODO: checking flowchart
 //		uint32_t time = 0;
 		mbutton = io_getButton();
 		minput = io_getInput();
@@ -967,14 +968,7 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 static void process_SD_Card(void) {
 	FATFS FatFs;
 	FIL fil;
-
-	do {
-		//mount SD card
-		if (f_mount(&FatFs, "", 0) != FR_OK) //0 = mount late, 1 = mount now
-				{
-			break;
-		}
-
+	f_mount(&FatFs, "", 0);//mount SD card
 #if 0	//turn on this macro if you want to check the free space of SD card
 		//Read size and free space of SD Card
 		DWORD fre_clust;
@@ -987,24 +981,10 @@ static void process_SD_Card(void) {
 		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
-		//Open file
-		if (f_open(&fil, "data.csv", FA_READ | FA_OPEN_ALWAYS | FA_WRITE)
-				!= FR_OK) //In this mode, it will create the file if file not existed
-				{
-			break;
-		}
-
-		//Write data to "test.txt"
-		f_puts("This is a sample", &fil); //write string to file
-
-		//Close file
-		if (f_close(&fil) != FR_OK) {
-			break;
-		}
-
-	} while (0);
-	f_mount(NULL, "", 0); //unmount SD card
-
+	f_open(&fil, "data.csv", FA_READ | FA_OPEN_ALWAYS | FA_WRITE);//In this mode, it will create the file if file not existed
+	f_puts("This is a sample", &fil);//write to file
+	f_close(&fil);
+	f_mount(NULL, "", 0);
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
@@ -1038,7 +1018,7 @@ static void app_SettingVDLRZ(void) {
 						;
 					buffer.V += 0.1;
 					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, V_set);
+					screen_setVDRLZ(buffer, cycle);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
@@ -1046,7 +1026,7 @@ static void app_SettingVDLRZ(void) {
 						;
 					buffer.V -= 0.1;
 					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, V_set);
+					screen_setVDRLZ(buffer, cycle);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1609,11 +1589,12 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 				mdata.mode = ZONLY;
 				app_CalculatorValue(cycleMeasure, mdata.mode);
 				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
-						NOT_SHOW_HIS);
+								NOT_SHOW_HIS);
 				cycleMeasure = Z_OK;
 				getInput = GET_BUTTON;
 				XStatus = SENSORCHANGE;
 				YStatus = SENSORCHANGE;
+				//TODO: Write mmeasureValue to SD_card
 //                DBG("C=2 MEASURE Z OK\n");
 			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
@@ -1626,7 +1607,7 @@ static void app_Measurement(void) { //TODO: adding app_Measurement_2
 				getInput = GET_SENSOR;
 				mdata.mode = ZERROR1;
 				screen_DataMeasureType1(mdata, msetCalibValue, MEASUREMENT_1,
-						NOT_SHOW_HIS);
+								NOT_SHOW_HIS);
 				//delay(100);
 //                DBG("C=2 MEASURE Z NOT OK\n");
 			}
@@ -2116,12 +2097,16 @@ static optionScreen_e_t app_optionMenu(void) {
 }
 
 static void app_processOptionMenu(optionScreen_e_t optionMenu) {
+	uint16_t index;
+	dataMeasure temp;
 	switch (optionMenu) {
 	case measurement1Setting:
-		//main screen 1 TODO
+		index = FLASH_ReadCurrentIndex(MEASUREMENT_1);
+		temp = FLASH_ReadDataMeasure(MEASUREMENT_1, index);
 		break;
 	case measurement2Setting:
-		//main screen 2
+		index = FLASH_ReadCurrentIndex(MEASUREMENT_2);
+		temp = FLASH_ReadDataMeasure(MEASUREMENT_2, index);
 		break;
 	case measurement1HisList:
 		app_HisValue(MEASUREMENT_1);
