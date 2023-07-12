@@ -162,7 +162,8 @@ static void app_Measurement_1(void);
 static void app_Measurement_2(void);
 static void app_SetCalibValue(uint8_t measurementIndex);
 static void app_GetCalibValue(uint8_t measurementIndex);
-static void app_CalculatorValue(CycleMeasure lcycleMeasure, uint8_t mode);
+static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
+		uint8_t measurementIndex);
 static void app_HisValue(uint8_t measurementIndex);
 static void app_ClearAllOutput(void);
 static void app_SetCurrentMeasureValue(uint8_t measurementIndex);
@@ -240,8 +241,6 @@ int main(void) {
 
 		if (menuScreenFlag) {
 			menuScreenFlag = 0;
-			while (_ON == io_getButton().menu)
-				;
 			currentOption = app_optionMenu();
 			app_processOptionMenu(currentOption);
 		}
@@ -683,8 +682,7 @@ static void MX_GPIO_Init(void) {
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB,
-			OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8 | GPIO_PIN_9,
-			GPIO_PIN_RESET);
+	OUT0_Pin | OUT1_Pin | OUT2_Pin | GPIO_PIN_8 | GPIO_PIN_9, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOC, LED1_Pin | LED2_Pin, GPIO_PIN_RESET);
@@ -1170,7 +1168,7 @@ static void app_SettingVDLRZ(void) {
 		}
 	} while (exit == 0);
 
-	if(exit)
+	if (exit)
 		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 // app.c
@@ -1403,7 +1401,7 @@ static void app_SettingRtc(void) {
 			} while (SET_MINUTE == cycle);
 		}
 	} while (0 == exit);
-	if(exit)
+	if (exit)
 		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
@@ -1550,7 +1548,7 @@ static void app_Measurement_1(void) {
 				mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
 				app_SetCurrentMeasureValue(MEASUREMENT_1);
 				mdata.mode = ZONLY;
-				app_CalculatorValue(cycleMeasure, mdata.mode);
+				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
 				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 				NOT_SHOW_HIS);
 				cycleMeasure = Z_OK;
@@ -1781,7 +1779,7 @@ static void app_Measurement_1(void) {
 			} else if (ZERROR1 == mdata.mode) {
 				mdata.mode = ZERROR2;
 			}
-			app_CalculatorValue(cycleMeasure, mdata.mode);
+			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
 			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 			NOT_SHOW_HIS);
 			process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
@@ -1953,7 +1951,7 @@ static void app_Measurement_2(void) {
 				mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
 				app_SetCurrentMeasureValue(MEASUREMENT_2);
 				mdata.mode = ZONLY;
-				app_CalculatorValue(cycleMeasure, mdata.mode);
+				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
 				screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
 				NOT_SHOW_HIS);
 				cycleMeasure = Z_OK;
@@ -2184,7 +2182,7 @@ static void app_Measurement_2(void) {
 			} else if (ZERROR1 == mdata.mode) {
 				mdata.mode = ZERROR2;
 			}
-			app_CalculatorValue(cycleMeasure, mdata.mode);
+			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
 			screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
 			NOT_SHOW_HIS);
 			process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
@@ -2233,7 +2231,8 @@ static void app_SetCurrentMeasureValue(uint8_t measurementIndex) {
 	FLASH_WriteDataCurrent(&mCurrentMeasureValue, measurementIndex);
 }
 
-static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
+static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
+		uint8_t measurementIndex) {
 	double db_DetaTX1 = 0;
 	double db_DetaTY1 = 0;
 	double db_DetaTX2 = 0;
@@ -2264,7 +2263,13 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode) {
 	double db_LXRB = 0;
 	double db_LYRB = 0;
 
-	if (CALIBSET == msetCalibValue_1) {	//TODO: msetCalibValue_2
+	uint8_t temp = 0;
+	if (measurementIndex == 1) {
+		temp = (uint8_t) msetCalibValue_1;
+	} else {
+		temp = (uint8_t) msetCalibValue_2;
+	}
+	if (CALIBSET == temp) {
 //        DBG("**********************************************************\n")
 		/*calculator Z*/
 		if ((ZONLY == mode) || (MEASUREALL == mode)) {
@@ -2497,6 +2502,7 @@ static void app_ShowIP(void) {
 			exit = 1;
 		}
 	} while (exit == 0);
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 
 static void app_HisValue(uint8_t measurementIndex) {
@@ -2590,7 +2596,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 	mledStatus.led3 = u8_Led3;
 	io_setLedStatus(mledStatus);
 
-	if(exit)
+	if (exit)
 		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
@@ -2657,6 +2663,7 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 				;
 			menuScreenFlag = 1;
 			exit = 1;
+			break;
 		}
 	} while (exit == 1 || _ON == minput.in0 || _ON == minput.in1);
 }
