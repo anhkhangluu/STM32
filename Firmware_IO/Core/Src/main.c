@@ -79,6 +79,8 @@
 
 #define MEASUREMENT_1_FILE_NAME		"measurement1.csv"
 #define MEASUREMENT_2_FILE_NAME		"measurement2.csv"
+
+#define EMPTY			-1 //this is the value return when at address of flash is empty data, this must be modify by other compiler
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -1437,7 +1439,7 @@ static void app_Measurement_1(void) {
 		}
 		/********************************************## 1 ##*******************************************/
 		/*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
-		if ((STOP == cycleMeasure) && (_ON == GET_IN0)) // X10=ON
+		if ((STOP == cycleMeasure) && (_ON == minput.in0)) // X10=ON
 				{
 			app_ClearAllOutput();
 			minput.in0 = _OFF;
@@ -1446,7 +1448,7 @@ static void app_Measurement_1(void) {
 			timer_Start(TIMER_CLEARSENSOR, TIMERCLEARSENSOR);
 			moutput.out0 = _OFF;
 			moutput.out1 = _OFF;
-			moutput.rl1 = _ON;
+			moutput.rl1 = _ON; //TODO: replace to out3-7
 			io_setOutput(moutput);
 //            DBG("cycleMeasure = CLEARSENSOR\n");
 		}
@@ -1477,11 +1479,11 @@ static void app_Measurement_1(void) {
 		/********************************************## 4 ##*******************************************/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
 			minput = io_getInput();
-			if (_ON == minput.in1) //C=1
+			if (_ON == minput.in2) //C=1
 					{
 				/*Start couter*/
 				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				getInput = GET_SENSOR;
@@ -1495,7 +1497,7 @@ static void app_Measurement_1(void) {
 			if (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR)) {
 				/*Start couter*/
 				timer_Start(TIMER_Z, TIMERMAXVALUE);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				getInput = GET_SENSOR;
@@ -1517,7 +1519,7 @@ static void app_Measurement_1(void) {
 				XStatus = SENSORCHANGE;
 //                DBG("SENSOR Z = ON\n");
 			}
-			if (_ON == minput.in1) // C=2
+			if (_ON == minput.in2) // C=2
 					{
 				if (SEN_START == cycleMeasureZ) {
 					mmeasureValue.Z = 0;
@@ -1534,10 +1536,10 @@ static void app_Measurement_1(void) {
 				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN0)) {
 			msensor = io_getSensor();
 			minput = io_getInput();
-			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
+			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
 					&& (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
 					{
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				moutput.out1 = _ON;
 				io_setOutput(moutput);
 				app_GetCurrentMeasureValue(MEASUREMENT_1);
@@ -1557,10 +1559,10 @@ static void app_Measurement_1(void) {
 				YStatus = SENSORCHANGE;
 				process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
 //                DBG("C=2 MEASURE Z OK\n");
-			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
+			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
 					{
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				moutput.out1 = _OFF;
 				io_setOutput(moutput);
 				time_Stop(TIMER_Z);
@@ -1592,13 +1594,13 @@ static void app_Measurement_1(void) {
 		/********************************************## 6 ##*******************************************/
 		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
 		while (((WAITMEASUREX1Y1 == cycleMeasure) || (SETVALUEZ == cycleMeasure))
-				&& (0 == GET_IN0)/*in0 = ON*/) {
+				&& (0 == GET_IN0)) {
 			minput = io_getInput();
-			if (_ON == minput.in1) //C=3
+			if (_ON == minput.in2) //C=3
 					{
 				/*Start couter*/
 				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				moutput.out0 = _OFF;
 				moutput.out1 = _OFF;
 				io_setOutput(moutput);
@@ -1614,7 +1616,7 @@ static void app_Measurement_1(void) {
 				/*Start counter*/
 				timer_Start(TIMER_X, TIMERMAXVALUE);
 				timer_Start(TIMER_Y, TIMERMAXVALUE);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				cycleMeasure = MEASUREX1Y1;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -1676,11 +1678,11 @@ static void app_Measurement_1(void) {
 		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
 		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN0)) {
 			minput = io_getInput();
-			if (_ON == minput.in1) // C=4
+			if (_ON == minput.in2) // C=4
 					{
 				/*Start couter*/
 				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				cycleMeasure = WAITRBSTABLEX2Y2;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -1693,7 +1695,7 @@ static void app_Measurement_1(void) {
 				/*Start couter*/
 				timer_Start(TIMER_X, TIMERMAXVALUE);
 				timer_Start(TIMER_Y, TIMERMAXVALUE);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				cycleMeasure = MEASUREX2Y2;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -1767,9 +1769,9 @@ static void app_Measurement_1(void) {
 		}
 		/********************************************## 8 ##*******************************************/
 		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
-				&& (_ON == minput.in1)) // C=5
+				&& (_ON == minput.in2)) // C=5
 				{
-			minput.in1 = _OFF;
+			minput.in2 = _OFF;
 			cycleMeasure = FINISH;
 			getInput = GET_BUTTON;
 			/*Calculator Value - Printf to screen*/
@@ -1840,10 +1842,10 @@ static void app_Measurement_2(void) {
 		}
 		/********************************************## 1 ##*******************************************/
 		/*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
-		if ((STOP == cycleMeasure) && (_ON == GET_IN1)) // X10=ON
+		if ((STOP == cycleMeasure) && (_ON == minput.in1)) // X10=ON
 				{
 			app_ClearAllOutput();
-			minput.in0 = _OFF;
+			minput.in1 = _OFF;
 			cycleMeasure = CLEARSENSOR;
 			getInput = GET_SENSOR;
 			timer_Start(TIMER_CLEARSENSOR, TIMERCLEARSENSOR);
@@ -1880,11 +1882,11 @@ static void app_Measurement_2(void) {
 		/********************************************## 4 ##*******************************************/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN1)) {
 			minput = io_getInput();
-			if (_ON == minput.in1) //C=1
+			if (_ON == minput.in2) //C=1
 					{
 				/*Start couter*/
 				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				getInput = GET_SENSOR;
@@ -1898,7 +1900,7 @@ static void app_Measurement_2(void) {
 			if (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR)) {
 				/*Start couter*/
 				timer_Start(TIMER_Z, TIMERMAXVALUE);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				getInput = GET_SENSOR;
@@ -1920,7 +1922,7 @@ static void app_Measurement_2(void) {
 				XStatus = SENSORCHANGE;
 //                DBG("SENSOR Z = ON\n");
 			}
-			if (_ON == minput.in1) // C=2
+			if (_ON == minput.in2) // C=2
 					{
 				if (SEN_START == cycleMeasureZ) {
 					mmeasureValue.Z = 0;
@@ -1937,10 +1939,10 @@ static void app_Measurement_2(void) {
 				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN1)) {
 			msensor = io_getSensor();
 			minput = io_getInput();
-			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
+			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
 					&& (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
 					{
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				moutput.out1 = _ON;
 				io_setOutput(moutput);
 				app_GetCurrentMeasureValue(MEASUREMENT_2);
@@ -1960,10 +1962,10 @@ static void app_Measurement_2(void) {
 				YStatus = SENSORCHANGE;
 				process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
 //                DBG("C=2 MEASURE Z OK\n");
-			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in1)
+			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
 					{
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				moutput.out1 = _OFF;
 				io_setOutput(moutput);
 				time_Stop(TIMER_Z);
@@ -1997,11 +1999,11 @@ static void app_Measurement_2(void) {
 		while (((WAITMEASUREX1Y1 == cycleMeasure) || (SETVALUEZ == cycleMeasure))
 				&& (0 == GET_IN1)/*in0 = ON*/) {
 			minput = io_getInput();
-			if (_ON == minput.in1) //C=3
+			if (_ON == minput.in2) //C=3
 					{
 				/*Start couter*/
 				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				moutput.out0 = _OFF;
 				moutput.out1 = _OFF;
 				io_setOutput(moutput);
@@ -2017,7 +2019,7 @@ static void app_Measurement_2(void) {
 				/*Start counter*/
 				timer_Start(TIMER_X, TIMERMAXVALUE);
 				timer_Start(TIMER_Y, TIMERMAXVALUE);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				cycleMeasure = MEASUREX1Y1;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -2079,11 +2081,11 @@ static void app_Measurement_2(void) {
 		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
 		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
 			minput = io_getInput();
-			if (_ON == minput.in1) // C=4
+			if (_ON == minput.in2) // C=4
 					{
 				/*Start couter*/
 				timer_Start(TIMER_CLEARSENSOR, TIMEWAITX11);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				cycleMeasure = WAITRBSTABLEX2Y2;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -2096,7 +2098,7 @@ static void app_Measurement_2(void) {
 				/*Start couter*/
 				timer_Start(TIMER_X, TIMERMAXVALUE);
 				timer_Start(TIMER_Y, TIMERMAXVALUE);
-				minput.in1 = _OFF;
+				minput.in2 = _OFF;
 				cycleMeasure = MEASUREX2Y2;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -2170,9 +2172,9 @@ static void app_Measurement_2(void) {
 		}
 		/********************************************## 8 ##*******************************************/
 		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
-				&& (_ON == minput.in1)) // C=5
+				&& (_ON == minput.in2)) // C=5
 				{
-			minput.in1 = _OFF;
+			minput.in2 = _OFF;
 			cycleMeasure = FINISH;
 			getInput = GET_BUTTON;
 			/*Calculator Value - Printf to screen*/
@@ -2604,9 +2606,26 @@ static void app_Init(void) {
 	LCD_Init();
 	W5500_init();
 	LCD_Clear();
-	FLASH_ReadDataCalib(MEASUREMENT_1);
-	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0)
-			&& (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0)) {
+
+	/*write index to flash*/
+	uint8_t index = (uint8_t) FLASH_ReadCurrentIndex(MEASUREMENT_1);
+	if (index > 9) {
+		index = 0; // this value range form 0 to 9
+		FLASH_WriteCurrentIndex(index, MEASUREMENT_1);
+	}
+	index = (uint8_t) FLASH_ReadCurrentIndex(MEASUREMENT_2);
+	if (index > 9) {
+		index = 0; // this value range form 0 to 9
+		FLASH_WriteCurrentIndex(index, MEASUREMENT_2);
+	}
+
+	/*write VDLRZ to flash*/
+	VDRLZ_Input temp = {20.0,20.0,1.2,20.0,1.2};
+	FLASH_WriteVDRLZ(temp);
+
+	app_GetCalibValue(MEASUREMENT_1);
+	if ((mcalibValue.X1 == EMPTY) && (mcalibValue.X2 == EMPTY) && (mcalibValue.Y1 == EMPTY)
+			&& (mcalibValue.Y2 == EMPTY) && (mcalibValue.Z == EMPTY)) {
 		mledStatus.led3 = _OFF;
 		msetCalibValue_1 = CALIBRESET;
 	} else {
@@ -2614,8 +2633,8 @@ static void app_Init(void) {
 		msetCalibValue_1 = CALIBSET;
 	}
 #if 0
-    FLASH_ReadDataCalib(MEASUREMENT_2);
-    if((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0))
+	app_GetCalibValue(MEASUREMENT_2);
+    if((mcalibValue.X1 == EMPTY) && (mcalibValue.X2 == EMPTY) && (mcalibValue.Y1 == EMPTY) && (mcalibValue.Y2 == EMPTY) && (mcalibValue.Z == EMPTY))
     {
         mledStatus.led3 = _OFF;
         msetCalibValue_2 = CALIBRESET;
@@ -2665,7 +2684,11 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 			exit = 1;
 			break;
 		}
-	} while (exit == 1 || _ON == minput.in0 || _ON == minput.in1);
+#if 1
+		process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+		process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
+#endif
+	} while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1);
 }
 /* USER CODE END 4 */
 

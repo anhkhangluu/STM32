@@ -230,7 +230,7 @@ void FLASH_WriteVDRLZ(VDRLZ_Input VDRLZ)
 {
 	static FLASH_EraseInitTypeDef EraseInitStruct;
 	uint32_t PAGEError;
-	uint32_t Addr = 0x0801E800UL;
+	uint32_t Addr = 0x0801E800UL; //TODO: add macro
 
 	/* Unlock the Flash to enable the flash control register access *************/
 	HAL_FLASH_Unlock();

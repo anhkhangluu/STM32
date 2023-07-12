@@ -49,6 +49,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "                ");
 		}
 	} else {
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, " ");
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=.... ");
@@ -81,8 +82,8 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 					(float) data.coordinates.aY / 10);
 		} else if (ZERROR1 == data.mode || data.mode == ZONLY) {
 
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   A=......");
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "   B=......");
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=......");
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=......");
 		} else {
             snprintf(screenBuffer.line2,LCD_LINE_SIZE+1,"                ");
             snprintf(screenBuffer.line3,LCD_LINE_SIZE+1,"   No Data...!  ");
@@ -91,12 +92,16 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 	}
 	else
 	{
-		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS. %01d HISTORY",
-						measIndex);
+		if (!showHisFlag)
+			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+					measIndex);
+		else
+			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
+					measIndex);
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
 						"....-..-.. ..:..");
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "	A=......");
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "	B=......");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=......");
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=......");
 	}
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
