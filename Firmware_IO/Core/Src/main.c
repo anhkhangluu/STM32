@@ -105,13 +105,12 @@ UART_HandleTypeDef huart2;
 #define true 	1
 /*----------------------------DHCP - MODBUS-----------------------------*/
 volatile uint8_t ip_assigned = false;
-
+//TODO
 uint16_t usRegInputBuf[REG_INPUT_NREGS] = { 0x1000, 0x1001, 0x1002, 0x1003,
 		0x1004, 0x1005, 0x1006, 0x1007 };
 uint16_t usRegHoldingBuf[REG_HOLDING_NREGS] = { 0x2000, 0x2001, 0x2002, 0x2003,
 		0x2004, 0x2005, 0x2006, 0x2007 };
 uint8_t ucRegCoilsBuf[REG_COILS_SIZE / 8] = { 0xaa, 0xfe };
-uint8_t ucRegDiscreteBuf[REG_DISCRETE_SIZE / 8] = { 0x98, 0x6e };
 /*---------------------------------------------------*/
 
 /*----------------app.c----------------*/
@@ -2645,14 +2644,11 @@ static void app_Init(void) {
         msetCalibValue_2 = CALIBSET;
     }
 #endif
-    process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
-    process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
 
     io_setLedStatus(mledStatus);
 	app_TrigerOutputON();
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
-
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 	uint16_t index;
 	dataMeasure data;
