@@ -788,7 +788,7 @@ static void W5500_init() {
 
 	uint32_t current = HAL_GetTick();
 	//get IP assigned
-	while (HAL_GetTick() - current > 1000) {
+	while (HAL_GetTick() - current < 1000) {
 		DHCP_run();
 	}
 
@@ -935,7 +935,7 @@ static void process_SD_Card(dataMeasure data, char *fileName) {
 	FATFS FatFs;
 	FIL fil;
 	char buff[110];
-	uint8_t BytesWr;
+	unsigned int BytesWr;
 	f_mount(&FatFs, "", 0); //mount SD card
 #if 0	//turn on this macro if you want to check the free space of SD card
 		//Read size and free space of SD Card
@@ -957,7 +957,7 @@ static void process_SD_Card(dataMeasure data, char *fileName) {
 			data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
 			data.coordinates.aY, data.mode);
 	f_lseek(&fil, f_size(&fil));
-	f_write(&fil, buff, strlen(buff), (void*) &BytesWr);
+	f_write(&fil, buff, strlen(buff), &BytesWr);
 	f_close(&fil);
 	f_mount(NULL, "", 0);
 }
@@ -2645,7 +2645,10 @@ static void app_Init(void) {
         msetCalibValue_2 = CALIBSET;
     }
 #endif
-	io_setLedStatus(mledStatus);
+    process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
+    process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+
+    io_setLedStatus(mledStatus);
 	app_TrigerOutputON();
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
@@ -2684,10 +2687,7 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 			exit = 1;
 			break;
 		}
-#if 1
-		process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
-		process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
-#endif
+
 	} while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1);
 }
 /* USER CODE END 4 */
