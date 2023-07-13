@@ -125,8 +125,6 @@ void Error_Handler(void);
 #define LED2_GPIO_Port GPIOC
 #define LED3_Pin GPIO_PIN_8
 #define LED3_GPIO_Port GPIOA
-#define LED4_Pin GPIO_PIN_9
-#define LED4_GPIO_Port GPIOA
 #define SD_CS_Pin GPIO_PIN_0
 #define SD_CS_GPIO_Port GPIOD
 #define SD_SCK_Pin GPIO_PIN_1

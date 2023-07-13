@@ -415,21 +415,23 @@ PR_END_EXTERN_C
 #endif
 
 /*--------modbus function macro-------------*/
+#define SLAVE_ID		1
+
 #define DHCP_SOCKET     0
 #define SNTP_SOCKET      1
 #define HTTP_SOCKET     0
 #define MBTCP_PORT      502
 
-#define REG_INPUT_START       0x0001
-#define REG_INPUT_NREGS       8
+#define REG_INPUT_START       0x01
+#define REG_INPUT_NREGS       10
 
-#define REG_HOLDING_START     0x0001
-#define REG_HOLDING_NREGS     8
+#define REG_HOLDING_START     0x01
+#define REG_HOLDING_NREGS     11
 
-#define REG_COILS_START       0x0001
-#define REG_COILS_SIZE        16
-
-#define REG_DISCRETE_START    0x0001
-#define REG_DISCRETE_SIZE     16
+#define REG_COILS_START       0x01
+#define REG_COILS_SIZE        11
+//
+//#define REG_DISCRETE_START    0x01
+//#define REG_DISCRETE_SIZE     16
 /*------------------------------------------*/
 #endif

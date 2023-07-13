@@ -143,13 +143,14 @@ typedef struct _output
     uint8_t out1;
     uint8_t out2;
     uint8_t out3;
-    uint8_t rl1;
-    uint8_t rl2;
+    uint8_t out4;
+    uint8_t out5;
+    uint8_t out6;
+    uint8_t out7;
 }output;
 
 typedef struct _ledStatus
 {
-    uint8_t led0;
     uint8_t led1;
     uint8_t led2;
     uint8_t led3;
