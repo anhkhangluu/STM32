@@ -223,29 +223,29 @@ void screen_showIP(wiz_NetInfo *netInfo)
 void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
 	switch (cycle) {
 	case V_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V =[%2.1f] D =%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L =%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R =%2.1f Z =%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=[%2.1f] D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
 		break;
 	case D_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V =%2.1f D =[%2.1f]", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L =%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R =%2.1f Z =%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=[%2.1f]", (double)VDRLZ.V, (double)VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
 		break;
 	case L_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V =%2.1f D =%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L =[%2.1f]", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R =%2.1f Z =%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=[%2.1f]", (double)VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
 		break;
 	case R_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V =%2.1f D =%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L =%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "[R =%2.1f] Z =%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "[R=%2.1f] Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
 		break;
 	case Z_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V =%2.1f D =%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L =%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R =%2.1f Z =[%2.1f]", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=[%2.1f]", (double)VDRLZ.R, (double)VDRLZ.Z);
 		break;
 	default:
 		break;
