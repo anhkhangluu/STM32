@@ -29,6 +29,4 @@ static inline input io_getInput(void)
     return linput;
 }
 
-
-
 #endif
