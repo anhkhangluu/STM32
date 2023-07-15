@@ -1491,7 +1491,7 @@ static void app_Measurement_1(void) {
 	CycleMeasure cycleMeasure = STOP;
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
-	CycleMeasureSensor cycleMeasureZ = SEN_STOP;
+//	CycleMeasureSensor cycleMeasureZ = SEN_STOP;
 	SensorChange XStatus = SENSORNOCHANGE;
 	SensorChange YStatus = SENSORNOCHANGE;
 	GetInputType getInput = GET_SENSOR;
@@ -1603,13 +1603,13 @@ static void app_Measurement_1(void) {
 				io_setOutput(moutput, ucRegCoilsBuf);
 				cycleMeasure = Z_NOT_OK;
 				getInput = GET_SENSOR;
-				mdata.mode = ZERROR2;
+				mdata.mode = ZERROR1;
 				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 				NOT_SHOW_HIS);
 //                DBG("C=2 MEASURE Z NOT OK\n");
 			}
 			if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure))
-					&& (_OFF == minput.in1)) {
+					&& (_OFF == minput.in1)) { //TODO: CHECK
 				cycleMeasure = WAITMEASUREX1Y1;
 //                DBG("C=2 cycleMeasure = WAITMEASUREX1Y1\n");
 			}
@@ -1894,32 +1894,32 @@ static void app_Measurement_2(void) {
 				cycleMeasure = CHECKZVALUE;
 //                DBG("C=1 START TIME MEASURE Z\n");
 			}
-		};//TODO: done there
+		};
 		/********************************************## 5 ##*******************************************/
 		while (((CHECKZVALUE == cycleMeasure) || (Z_OK == cycleMeasure)
-				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN0)) {
+				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN1)) {
 			minput = io_getInput();
 			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2 /*C=2*/)
 					&& (_ON == msensor.s0) && (_ON == msensor.s1)) {
 				minput.in2 = _OFF;
 				moutput.out1 = _ON;
 				io_setOutput(moutput, ucRegCoilsBuf);
-				app_GetCurrentMeasureValue(MEASUREMENT_1);
+				app_GetCurrentMeasureValue(MEASUREMENT_2);
 				mmeasureValue.Z = __HAL_TIM_GET_COUNTER(&htim1); //get Z
 				mmeasureValue.X1 = mCurrentMeasureValue.X1;
 				mmeasureValue.Y1 = mCurrentMeasureValue.Y1;
 				mmeasureValue.X2 = mCurrentMeasureValue.X2;
 				mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
-				app_SetCurrentMeasureValue(MEASUREMENT_1);
+				app_SetCurrentMeasureValue(MEASUREMENT_2);
 				mdata.mode = ZONLY;
-				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
+				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
+				screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
 				NOT_SHOW_HIS);
 				cycleMeasure = Z_OK;
 				getInput = GET_BUTTON;
 				XStatus = SENSORCHANGE;
 				YStatus = SENSORCHANGE;
-				process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+				process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
 //                DBG("C=2 MEASURE Z OK\n");
 			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) {
@@ -1928,8 +1928,8 @@ static void app_Measurement_2(void) {
 				io_setOutput(moutput, ucRegCoilsBuf);
 				cycleMeasure = Z_NOT_OK;
 				getInput = GET_SENSOR;
-				mdata.mode = ZERROR2;
-				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
+				mdata.mode = ZERROR1;
+				screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
 				NOT_SHOW_HIS);
 //                DBG("C=2 MEASURE Z NOT OK\n");
 			}
@@ -1946,12 +1946,12 @@ static void app_Measurement_2(void) {
 			cycleMeasure = WAITMEASUREX1Y1;
 			getInput = GET_SENSOR;
 //            DBG("SET Z\n");
-			app_SetCalibValue(MEASUREMENT_1);
-			app_GetCalibValue(MEASUREMENT_1);
+			app_SetCalibValue(MEASUREMENT_2);
+			app_GetCalibValue(MEASUREMENT_2);
 		}
 		/********************************************## 6 ##*******************************************/
 		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
-		while (WAITMEASUREX1Y1 == cycleMeasure && 0 == GET_IN0) {
+		while (WAITMEASUREX1Y1 == cycleMeasure && 0 == GET_IN1) {
 			minput = io_getInput();
 			if (_ON == minput.in2) //C=3
 					{
@@ -1967,7 +1967,7 @@ static void app_Measurement_2(void) {
 //                DBG("Start counter X1, Y1\n");
 			}
 		};
-		while ((MEASUREX1Y1 == cycleMeasure) && (0 == GET_IN0)) {
+		while ((MEASUREX1Y1 == cycleMeasure) && (0 == GET_IN1)) {
 			minput = io_getInput();
 			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
 				/*Stop couter X*/
@@ -2018,7 +2018,7 @@ static void app_Measurement_2(void) {
 		};
 		/********************************************## 7 ##*******************************************/
 		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
-		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN0)) {
+		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
 			minput = io_getInput();
 			if (_ON == minput.in2) // C=4
 					{
@@ -2032,7 +2032,7 @@ static void app_Measurement_2(void) {
 //                DBG("cycleMeasure = WAITMEASUREX2Y2 C=4\n");
 			}
 		};
-		while ((MEASUREX2Y2 == cycleMeasure) && (0 == GET_IN0)) {
+		while ((MEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
 			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
 				/*Stop couter X*/
 				mmeasureValue.X2 = __HAL_TIM_GET_COMPARE(&htim1,TIM_CHANNEL_1);
@@ -2081,14 +2081,14 @@ static void app_Measurement_2(void) {
 
 		/*Robot di chuyển tới vị trí P18*/
 		if ((WAITSETVALUE == cycleMeasure) && (_ON == mbutton.set)) {
-			app_GetCalibValue(MEASUREMENT_1);
+			app_GetCalibValue(MEASUREMENT_2);
 			if ((EMPTY == mcalibValue.X1) && (EMPTY == mcalibValue.X2)
 					&& (EMPTY == mcalibValue.Y1) && (EMPTY == mcalibValue.Y2)
 					&& (EMPTY == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
-				app_SetCalibValue(MEASUREMENT_1);
-				app_GetCalibValue(MEASUREMENT_1);
+				app_SetCalibValue(MEASUREMENT_2);
+				app_GetCalibValue(MEASUREMENT_2);
 				mledStatus.led1 = _ON;
-				msetCalibValue_1 = CALIBSET;
+				msetCalibValue_2 = CALIBSET;
 				io_setLedStatus(mledStatus, ucRegCoilsBuf);
 			}
 			getInput = GET_SENSOR;
@@ -2103,19 +2103,19 @@ static void app_Measurement_2(void) {
 			cycleMeasure = FINISH;
 			getInput = GET_BUTTON;
 			/*Calculator Value - Printf to screen*/
-			app_SetCurrentMeasureValue(MEASUREMENT_1);
+			app_SetCurrentMeasureValue(MEASUREMENT_2);
 			if (ZONLY == mdata.mode) {
 				mdata.mode = MEASUREALL;
 			} else if (ZERROR1 == mdata.mode) {
 				mdata.mode = ZERROR2;
 			}
-			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
+			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
+			screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
 			NOT_SHOW_HIS);
-			process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+			process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
 //            DBG("cycleMeasure = FINISH C=5\n");
 		}
-	} while (0 == GET_IN0);
+	} while (0 == GET_IN1);
 
 	app_TrigerOutputOFF();
 	moutput.out0 = _OFF;
@@ -2132,8 +2132,8 @@ static void app_Measurement_2(void) {
 	}
 	io_setOutput(moutput,ucRegCoilsBuf);
 	app_TrigerOutputON();
-	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
-		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
+	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_2)) {
+		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_2);
 	}
 }
 
