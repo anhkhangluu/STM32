@@ -1,0 +1,28 @@
+---------------------INPUT--------------------
+IN0 = ON: start measurement 1
+IN1 = ON: start measurement 2
+IN2: signal trigger cho cả 2 measurement
+
+
+------------------OUTPUT-----------------------
+**external LED
+LED1 = ON set giá trị chuẩn
+LED2 = ON -> sensor ko thay đổi/ OFF -> sensor thay đổi
+LED3 = OFF chưa set giá trị chuẩn / ON  đã xét giá trị chuẩn
+
+**internal LED
+out0 -D1 - ON -> robot đến điểm P0, bật van start clear sensor
+out1 -D2 - ON -> cảm biến sạch
+out2 -D3 - ON -> start measure Z
+out3 -D4 - ON -> measure Z done / OFF - Z bị lệch tâm, ko đo được
+
+out4 -D5 - ON -> start measure X1 Y1
+out5 -D6 - ON -> measure X1 done
+out6 -D7 - ON -> measure Y1 done
+out4 -D5 - OFF -> measure X2 Y2 done
+
+out7 -D8 - ON -> start measure X2 Y2 / D5 D6 D7 - OFF
+out5 -D6 - ON -> measure X2 done
+out6 -D7 - ON -> measure Y2 done
+out7 -D8 - OFF -> measure X2 Y2 done
+=> kết thúc measure nếu external LED2 = ON -> sensor ko thay đổi/ OFF -> sensor thay đổi
