@@ -251,7 +251,7 @@ int main(void)
 //HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_3);
 	process_SD_Card();
 /*-------------------DHCP----------------*/
-//	W5500_init();
+	W5500_init();
 	HAL_Delay(200);
 	eMBTCPInit(MBTCP_PORT);
 	HAL_Delay(200);
@@ -267,6 +267,7 @@ int main(void)
 //		HAL_GPIO_TogglePin(OUT0_GPIO_Port, OUT0_Pin);
 
 		HAL_Delay(1000);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -761,11 +762,9 @@ static void process_SD_Card(void) {
 	  {45,3,2,1,2,3},1
 	};
 
-	static Time mtime =
-	{
-	  2022,05,21,06,00,00
-	};
-	sprintf(buff,"";
+
+	sprintf(buff,"20%02d-%02d-%02d %02d:%02d endline\r\n", mdata.time.year, mdata.time.month,
+			mdata.time.day, mdata.time.hour, mdata.time.minute);
 
 	do {
 		//mount SD card
@@ -775,15 +774,17 @@ static void process_SD_Card(void) {
 		}
 
 		//Open file
-		if (f_open(&fil, "test.csv", FA_READ | FA_OPEN_ALWAYS | FA_WRITE)
+		if (f_open(&fil, "test.csv", FA_READ | FA_OPEN_ALWAYS | FA_WRITE) ///FA_OPEN_ALWAYS
 				!= FR_OK) //In this mode, it will create the file if file not existed
 				{
 			break;
 		}
-
+		  unsigned int BytesWr;
 		//Write data to "test.txt"
 //		f_puts("This is a sample", &fil); //write string to file
-		f_write(&fil, buff, strlen(buff));
+
+		f_lseek(&fil, f_size(&fil));
+		f_write(&fil, buff, strlen(buff),&BytesWr);
 		//Close file
 		if (f_close(&fil) != FR_OK) {
 			break;
