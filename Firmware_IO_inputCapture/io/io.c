@@ -90,3 +90,10 @@ static void io_TestOutput(void)
     }
 }
 
+input io_getInput(void)
+{
+    input linput;
+    linput.in0 = (GET_IN0 > 0) ? _OFF:_ON;
+    linput.in1 = (GET_IN1 > 0) ? _OFF:_ON;
+    return linput;
+}

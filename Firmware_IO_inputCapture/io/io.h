@@ -20,13 +20,7 @@ button io_getButton(void);
 void io_setOutput(output out, uint8_t *MBReg);
 void io_setLedStatus(ledStatus led, uint8_t *MBReg);
 
-static inline input io_getInput(void)
-{
-    input linput;
-    linput.in0 = (GET_IN0 > 0) ? _OFF:_ON;
-    linput.in1 = (GET_IN1 > 0) ? _OFF:_ON;
-//    linput.in2 = (GET_IN2 > 0) ? _OFF:_ON;
-    return linput;
-}
+input io_getInput(void);
+
 
 #endif
