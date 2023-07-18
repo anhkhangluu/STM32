@@ -137,7 +137,6 @@ typedef struct _input
 {
     uint8_t in0;
     uint8_t in1;
-    uint8_t in2;
 }input;
 
 typedef struct _output

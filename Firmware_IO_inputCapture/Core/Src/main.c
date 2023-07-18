@@ -102,13 +102,14 @@ uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = {0};
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
-static Time mtime = { 23, 07, 18, 13, 00, 00 };
+static Time mtime = { 23, 07, 18, 17, 00, 00 };
 uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
 
 static button mbutton;
 volatile static input minput;
+uint8_t trigger_in2 = _OFF;
 volatile static sensor msensor= {_OFF,_OFF};
 static output moutput;
 static ledStatus mledStatus;
@@ -225,6 +226,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		mdata.time = rtc_Now();
 		minput = io_getInput();
 //		uint32_t _time = 0;
 		if (menuScreenFlag) {
@@ -1513,10 +1515,10 @@ static void app_Measurement_1(void) {
 		/********************************************## 4 ##*******************************************/
 		/*Measure Z*/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
-			if (minput.in2 == _ON) //C=1
+			if (trigger_in2 == _ON) //C=1
 					{
 				/*Start couter*/
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				getInput = GET_SENSOR;
@@ -1527,7 +1529,7 @@ static void app_Measurement_1(void) {
 		/********************************************## 5 ##*******************************************/
 		while (((CHECKZVALUE == cycleMeasure) || (Z_OK == cycleMeasure)
 				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN0)) {
-			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2 /*C=2*/)
+			if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2 /*C=2*/)
 					&& (_ON == msensor.s0) && (_ON == msensor.s1)) {
 				moutput.out1 = _ON; //start calculator Z
 				io_setOutput(moutput, ucRegCoilsBuf);
@@ -1553,12 +1555,12 @@ static void app_Measurement_1(void) {
 				YStatus = SENSORCHANGE;
 				process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
 //                DBG("C=2 MEASURE Z OK\n");
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
-			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
+			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) {
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				moutput.out1 = _OFF;
 				io_setOutput(moutput, ucRegCoilsBuf);
 				cycleMeasure = Z_NOT_OK;
@@ -1592,10 +1594,10 @@ static void app_Measurement_1(void) {
 				app_SetCalibValue(MEASUREMENT_1);
 				app_GetCalibValue(MEASUREMENT_1);
 			}
-			if (_ON == minput.in2) //C=3
+			if (_ON == trigger_in2) //C=3
 					{
 				/*Start couter*/
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				cycleMeasure = MEASUREX1Y1;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -1655,7 +1657,7 @@ static void app_Measurement_1(void) {
 		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
 		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN0)) {
 
-			if (_ON == minput.in2) // C=4
+			if (_ON == trigger_in2) // C=4
 					{
 				if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
 				{
@@ -1666,7 +1668,7 @@ static void app_Measurement_1(void) {
 				else
 				{
 					/*Start couter*/
-					minput.in2 = _OFF;
+					trigger_in2 = _OFF;
 					cycleMeasure = MEASUREX2Y2;
 					getInput = GET_SENSOR;
 					cycleMeasureX = SEN_START;
@@ -1756,11 +1758,12 @@ static void app_Measurement_1(void) {
 				io_setLedStatus(mledStatus, ucRegCoilsBuf);
 			}
 			getInput = GET_SENSOR;
+			trigger_in2 = _OFF;
 //            DBG("cycleMeasure = CALCULATORVALUE\n");
 		}
 		/********************************************## 8 ##*******************************************/
 		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
-				&& (_ON == minput.in2)) // C=5
+				&& (_ON == trigger_in2)) // C=5
 				{
 			if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
 			{
@@ -1770,7 +1773,7 @@ static void app_Measurement_1(void) {
 			}
 			else
 			{
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				cycleMeasure = FINISH;
 				getInput = GET_BUTTON;
 				/*Calculator Value - Print to screen*/
@@ -1794,6 +1797,7 @@ static void app_Measurement_1(void) {
 			moutput.out2 = _ON;
 			moutput.out3 = _ON;
 			io_setOutput(moutput, ucRegCoilsBuf);
+
 			mledStatus.led1 = _ON;
 			mledStatus.led2 = _ON;
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
@@ -1801,6 +1805,7 @@ static void app_Measurement_1(void) {
 			mledStatus.led1 = _OFF;
 			mledStatus.led2 = _OFF;
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
 			screen_DataMeasureType1(mdata, SEN_ERROR, MEASUREMENT_1, NOT_SHOW_HIS); //SHOW ... ...
 
 			if(mbutton.reset == _ON)
@@ -1846,12 +1851,11 @@ static void app_Measurement_1(void) {
 //	app_TrigerOutputON();
 	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
 		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 	}
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 
-static void app_Measurement_2(void)
-{
+static void app_Measurement_2(void){
 	volatile CycleMeasure cycleMeasure = STOP;
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
@@ -1914,10 +1918,10 @@ static void app_Measurement_2(void)
 		/********************************************## 4 ##*******************************************/
 		/*Measure Z*/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN1)) {
-			if (minput.in2 == _ON) //C=1
+			if (trigger_in2 == _ON) //C=1
 					{
 				/*Start couter*/
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				getInput = GET_SENSOR;
@@ -1928,7 +1932,7 @@ static void app_Measurement_2(void)
 		/********************************************## 5 ##*******************************************/
 		while (((CHECKZVALUE == cycleMeasure) || (Z_OK == cycleMeasure)
 				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN1)) {
-			if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2 /*C=2*/)
+			if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2 /*C=2*/)
 					&& (_ON == msensor.s0) && (_ON == msensor.s1)) {
 				moutput.out1 = _ON; //start calculator Z
 				io_setOutput(moutput, ucRegCoilsBuf);
@@ -1954,12 +1958,12 @@ static void app_Measurement_2(void)
 				YStatus = SENSORCHANGE;
 				process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
 //                DBG("C=2 MEASURE Z OK\n");
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
-			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
+			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) {
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				moutput.out1 = _OFF;
 				io_setOutput(moutput, ucRegCoilsBuf);
 				cycleMeasure = Z_NOT_OK;
@@ -1993,10 +1997,10 @@ static void app_Measurement_2(void)
 				app_SetCalibValue(MEASUREMENT_2);
 				app_GetCalibValue(MEASUREMENT_2);
 			}
-			if (_ON == minput.in2) //C=3
+			if (_ON == trigger_in2) //C=3
 					{
 				/*Start couter*/
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				cycleMeasure = MEASUREX1Y1;
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
@@ -2056,7 +2060,7 @@ static void app_Measurement_2(void)
 		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
 		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
 
-			if (_ON == minput.in2) // C=4
+			if (_ON == trigger_in2) // C=4
 					{
 				if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
 				{
@@ -2067,7 +2071,7 @@ static void app_Measurement_2(void)
 				else
 				{
 					/*Start couter*/
-					minput.in2 = _OFF;
+					trigger_in2 = _OFF;
 					cycleMeasure = MEASUREX2Y2;
 					getInput = GET_SENSOR;
 					cycleMeasureX = SEN_START;
@@ -2157,11 +2161,12 @@ static void app_Measurement_2(void)
 				io_setLedStatus(mledStatus, ucRegCoilsBuf);
 			}
 			getInput = GET_SENSOR;
+			trigger_in2 = _OFF;
 //            DBG("cycleMeasure = CALCULATORVALUE\n");
 		}
 		/********************************************## 8 ##*******************************************/
 		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
-				&& (_ON == minput.in2)) // C=5
+				&& (_ON == trigger_in2)) // C=5
 				{
 			if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
 			{
@@ -2171,7 +2176,7 @@ static void app_Measurement_2(void)
 			}
 			else
 			{
-				minput.in2 = _OFF;
+				trigger_in2 = _OFF;
 				cycleMeasure = FINISH;
 				getInput = GET_BUTTON;
 				/*Calculator Value - Print to screen*/
@@ -2195,6 +2200,7 @@ static void app_Measurement_2(void)
 			moutput.out2 = _ON;
 			moutput.out3 = _ON;
 			io_setOutput(moutput, ucRegCoilsBuf);
+
 			mledStatus.led1 = _ON;
 			mledStatus.led2 = _ON;
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
@@ -2202,6 +2208,7 @@ static void app_Measurement_2(void)
 			mledStatus.led1 = _OFF;
 			mledStatus.led2 = _OFF;
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
 			screen_DataMeasureType1(mdata, SEN_ERROR, MEASUREMENT_2, NOT_SHOW_HIS); //SHOW ... ...
 
 			if(mbutton.reset == _ON)
@@ -2247,8 +2254,8 @@ static void app_Measurement_2(void)
 //	app_TrigerOutputON();
 	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_2)) {
 		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_2);
-		app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
 	}
+	app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
 }
 
 static void app_ClearAllOutput(void) {
@@ -2623,7 +2630,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 
 static void app_Init(void) {
 	LCD_Init();
-	W5500_init();
+//	W5500_init();
 	LCD_Clear();
 
 
@@ -2710,7 +2717,7 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 
 static void updateMBRegister(void)
 {
-	uint16_t tempInput[REG_INPUT_NREGS] = {msensor.s0,msensor.s1,GET_IN0,GET_IN1,minput.in2,GET_IN3,GET_IN4,GET_IN5,GET_IN6,GET_IN7};
+	uint16_t tempInput[REG_INPUT_NREGS] = {msensor.s0,msensor.s1,GET_IN0,GET_IN1,trigger_in2,GET_IN3,GET_IN4,GET_IN5,GET_IN6,GET_IN7};
 	memcpy(usRegInputBuf,tempInput,sizeof(usRegInputBuf));
 	//TODO: checking array elements
 //	modbus_tcps(HTTP_SOCKET, MBTCP_PORT);
@@ -2736,7 +2743,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	if(GPIO_Pin == IN2_Pin)
 	{
-		minput.in2 = _ON;
+		trigger_in2 = _ON;
 		timer_Start(TIMER_X, TIMERMAXVALUE);
 		timer_Start(TIMER_Y, TIMERMAXVALUE);
 //		while(HAL_GPIO_ReadPin(GPIOD, IN2_Pin) == 0);
