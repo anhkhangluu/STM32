@@ -42,6 +42,7 @@ typedef enum _CycleMeasure
     WAITMEASUREX1Y1,
     WAITRBSTABLEX1Y1,
     MEASUREX1Y1,
+	CYCLE_SEN_ERROR,
     WAITMEASUREX2Y2,
     WAITRBSTABLEX2Y2,
     MEASUREX2Y2,
@@ -56,7 +57,8 @@ typedef enum _CycleMeasureSensor
 {
     SEN_START = 0,
     SEN_STOP,
-    SEN_FINISH
+    SEN_FINISH,
+	SEN_ERROR
 }CycleMeasureSensor;
 
 typedef enum _GetInputType

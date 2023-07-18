@@ -48,11 +48,18 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   No Data...!  ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "                ");
 		}
-	} else {
+	} else if (setCalib == CALIBRESET){
 		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, " ");
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=.... ");
+	}
+	else
+	{
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, " ");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, " ");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "ERROR");
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, " ");
 	}
 
 	LCD_Puts(0, 0, screenBuffer.line1);
