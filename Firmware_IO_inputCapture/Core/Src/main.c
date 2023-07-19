@@ -43,6 +43,8 @@
 #include "math.h"
 #include "rtc.h"
 #include "flash.h"
+
+#define LED_DEBUG
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,7 +94,6 @@ volatile int32_t captureTime_Y = 0;
 uint8_t counter_2 = 0;
 /*----------------------------DHCP - MODBUS-----------------------------*/
 volatile uint8_t ip_assigned = false;
-//TODO
 uint16_t usRegInputBuf[REG_INPUT_NREGS] = {0};
 uint16_t usRegHoldingBuf[REG_HOLDING_NREGS] = {0};
 uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = {0};
@@ -109,7 +110,7 @@ wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 
 static button mbutton;
 volatile static input minput;
-uint8_t trigger_in2 = _OFF;
+volatile uint8_t trigger_in2 = _OFF;
 volatile static sensor msensor= {_OFF,_OFF};
 static output moutput;
 static ledStatus mledStatus;
@@ -1506,12 +1507,22 @@ static void app_Measurement_1(void) {
 			} else {
 				moutput.out0 = _OFF;
 				moutput.out4 = _OFF;
+#ifdef LED_DEBUG
+				moutput.out5 = _ON;
+#endif
 				io_setOutput(moutput,ucRegCoilsBuf);
 				cycleMeasure = ERROR;
 //                DBG("SENSOR NOT OK\n");
 			}
 			getInput = GET_SENSOR;
 		}
+#ifdef LED_DEBUG
+				if(STOP == cycleMeasure && moutput.out4 == _ON && trigger_in2 == _ON)
+				{
+					moutput.out6 = _ON;
+					io_setOutput(moutput,ucRegCoilsBuf);
+				}
+#endif
 		/********************************************## 4 ##*******************************************/
 		/*Measure Z*/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
@@ -1566,8 +1577,8 @@ static void app_Measurement_1(void) {
 				cycleMeasure = Z_NOT_OK;
 				getInput = GET_SENSOR;
 				mdata.mode = ZERROR1;
-				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
-				NOT_SHOW_HIS);
+//				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
+//				NOT_SHOW_HIS);
 //                DBG("C=2 MEASURE Z NOT OK\n");
 			}
 			if ((Z_OK == cycleMeasure || Z_NOT_OK == cycleMeasure)) {
@@ -1585,6 +1596,13 @@ static void app_Measurement_1(void) {
 //				app_GetCalibValue(MEASUREMENT_1);
 //			}
 		}
+#ifdef LED_DEBUG
+		if(cycleMeasure == WAITMEASUREX1Y1 && (_OFF == msensor.s0) || (_OFF == msensor.s1))
+		{
+//			moutput.out7 = _ON;
+			io_setOutput(moutput, ucRegCoilsBuf);
+		}
+#endif
 		/********************************************## 6 ##*******************************************/
 		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
 		while (WAITMEASUREX1Y1 == cycleMeasure && 0 == GET_IN0) {
@@ -1668,6 +1686,8 @@ static void app_Measurement_1(void) {
 				else
 				{
 					/*Start couter*/
+					msensor.s1 = _OFF;
+					msensor.s0 = _OFF;
 					trigger_in2 = _OFF;
 					cycleMeasure = MEASUREX2Y2;
 					getInput = GET_SENSOR;
@@ -1791,7 +1811,7 @@ static void app_Measurement_1(void) {
 			}
 		}
 
-		while(cycleMeasure == CYCLE_SEN_ERROR) //measure X1Y1 Error
+		while(cycleMeasure == CYCLE_SEN_ERROR) //measure XY Error
 		{
 			mbutton = io_getButton();
 			moutput.out2 = _ON;
@@ -2531,7 +2551,6 @@ static void app_HisValue(uint8_t measurementIndex) {
 	uint16_t index = FLASH_ReadCurrentIndex(measurementIndex) - 1; //minus 1 to get the newest data;
 	uint8_t exit = 0;
 	dataMeasure ldata;
-	uint8_t u8_Led3 = mledStatus.led3;
 
 	LCD_Clear();
 	ldata = FLASH_ReadDataMeasure(measurementIndex, index);
@@ -2621,8 +2640,6 @@ static void app_HisValue(uint8_t measurementIndex) {
 		}
 	} while (exit == 0);
 	time_Stop(TIMER_CLEARSENSOR);
-	mledStatus.led3 = u8_Led3;
-	io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
 	if (exit)
 		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
