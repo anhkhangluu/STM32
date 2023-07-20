@@ -52,7 +52,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define SD_DEBUG
+//#define CDC_DEBUG
 
 #define TIME_WAIT 100
 
@@ -66,6 +66,12 @@
 #define MEASUREMENT_2_FILE_NAME		"measurement2.csv"
 
 #define EMPTY			-1 //this is the value return when at address of flash is empty data, this must be modify by other compiler
+
+#ifdef CDC_DEBUG
+#define DBG(x...) CDC_Transmit_FS(x,sizeof(x))
+#else
+#define DBG(x...)
+#endif
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -105,16 +111,16 @@ uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
 
-static button mbutton;
-static input minput;
-static sensor msensor;
-static output moutput;
-static ledStatus mledStatus;
-static MeasureValue mcalibValue;
-static MeasureValue mCurrentMeasureValue;
-static MeasureValue mmeasureValue;
-static setCalibValue msetCalibValue_1; //for measurement1
-static setCalibValue msetCalibValue_2; //for measurement2
+volatile static button mbutton;
+volatile static input minput;
+volatile static sensor msensor;
+volatile static output moutput;
+volatile static ledStatus mledStatus;
+volatile static MeasureValue mcalibValue;
+volatile static MeasureValue mCurrentMeasureValue;
+volatile static MeasureValue mmeasureValue;
+volatile static setCalibValue msetCalibValue_1; //for measurement1
+volatile static setCalibValue msetCalibValue_2; //for measurement2
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -163,9 +169,7 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex);
 
 static void updateMBRegister(void);
 
-#ifdef SD_DEBUG
-void SD_cardMsg(char *msg, char *fileName);
-#endif
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -217,22 +221,6 @@ int main(void)
 	HAL_TIM_Base_Start(&htim3);
 	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
 
-//	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, 1);
-//	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_0, 1);
-//	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, 1);
-//	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, 1);
-//
-//	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_5, 1);
-//	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2, 1);
-//	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, 1);
-////	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, 1);
-////	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, 0);
-////	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_0, 0);
-////	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, 0);
-////	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, 0);
-
-
-
 	app_Init();
 
   /* USER CODE END 2 */
@@ -244,6 +232,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 		minput = io_getInput();
+		mbutton = io_getButton();
 		uint32_t _time = 0;
 		if (menuScreenFlag) {
 			menuScreenFlag = 0;
@@ -265,7 +254,7 @@ int main(void)
 //////////////////////////////////////////////////
 		if (_ON == mbutton.reset) {
 			mbutton.reset = _OFF;
-			timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB);
+			timer_Start(TIMER_CLEARCALIB, TIMERMAXVALUE);
 			do {
 				/* code */
 			} while (_ON == io_getButton().reset);
@@ -286,8 +275,11 @@ int main(void)
 			} else if ((_time >= 50000)) {
 				MeasureValue vl = { 0, 0, 0, 0, 0 };
 				FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
-//				FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
-				FLASH_ReadDataCalib(MEASUREMENT_1);
+				FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
+
+				app_GetCalibValue(MEASUREMENT_1);
+				app_GetCalibValue(MEASUREMENT_2);
+
 				mledStatus.led3 = _OFF;
 				msetCalibValue_1 = CALIBRESET;
 				io_setLedStatus(mledStatus, ucRegCoilsBuf);
@@ -1014,21 +1006,7 @@ static void process_SD_Card(dataMeasure data, char *fileName) {
 	f_close(&fil);
 	f_mount(NULL, "", 0);
 }
-#ifdef SD_DEBUG
-void SD_cardMsg(char *msg, char *fileName)
-{
-	FATFS FatFs;
-	FIL fil;
-	char buff[110];
-	unsigned int BytesWr;
-	f_mount(&FatFs, "", 0); //mount SD card
-	f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE); //In this mode, it will create the file if file not existed
-	f_lseek(&fil, f_size(&fil));
-	f_write(&fil, msg, strlen(msg), &BytesWr);
-	f_close(&fil);
-	f_mount(NULL, "", 0);
-}
-#endif
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 	if (htim == &htim1) {
 		register uint8_t i;
@@ -1476,13 +1454,12 @@ static void app_SettingRtc(void) {
 }
 
 static void app_Measurement_1(void) { //TODO: check
-	CycleMeasure cycleMeasure = STOP;
+	volatile CycleMeasure cycleMeasure = STOP;
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
 	CycleMeasureSensor cycleMeasureZ = SEN_STOP;
 	SensorChange XStatus = SENSORNOCHANGE;
 	SensorChange YStatus = SENSORNOCHANGE;
-	GetInputType getInput = GET_SENSOR;
 
 	mdata.coordinates.X = 0;
 	mdata.coordinates.Y = 0;
@@ -1496,35 +1473,29 @@ static void app_Measurement_1(void) { //TODO: check
 	mmeasureValue.X2 = 0;
 	mmeasureValue.Y2 = 0;
 	mmeasureValue.Z = 0;
-	SD_cardMsg("---------------------------\r\n", MEASUREMENT_1_FILE_NAME);
-	SD_cardMsg("1. Start measurement 1\r\n", MEASUREMENT_1_FILE_NAME);
+
+	DBG("START MEASUREMENT 1\r\n");
 	do {
-		if (GET_BUTTON == getInput) {
-			mbutton = io_getButton();
-			minput = io_getInput();
-		} else {
-			minput = io_getInput();
-			msensor = io_getSensor();
-		}
 		/********************************************## 1 ##*******************************************/
 		/*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
-		if ((STOP == cycleMeasure) && (_ON == minput.in0)) // X10=ON
+		while ((STOP == cycleMeasure) && (0 == GET_IN0)) // X10=ON  //if
 				{
 			app_ClearAllOutput();
 			minput.in0 = _OFF;
 			cycleMeasure = CLEARSENSOR;
-			getInput = GET_SENSOR;
 			timer_Start(TIMER_CLEARSENSOR, TIMERCLEARSENSOR);
 			moutput.out4 = _ON; // O7 ON start clear sensor
 			io_setOutput(moutput,ucRegCoilsBuf);
-//            DBG("cycleMeasure = CLEARSENSOR\n");
-//			SD_cardMsg("2. Cleaning sensor\r\n", MEASUREMENT_1_FILE_NAME);
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Clearing sensor \r\n", sizeof("Clearing sensor \r\n"));
+#endif
 		}
 		/********************************************## 2 ##*******************************************/
 		/********************************************## 3 ##*******************************************/
 		/*Waiting clear Sensor*/
-		if ((CLEARSENSOR == cycleMeasure)
+		while ((CLEARSENSOR == cycleMeasure)
 				&& (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR))) {
+			msensor = io_getSensor();
 			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
 
 				moutput.out0 = _ON;
@@ -1534,18 +1505,19 @@ static void app_Measurement_1(void) { //TODO: check
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				cycleMeasure = WAITMEASUREZ;
-				SD_cardMsg("3. Cleaning done - SENSOR OK\r\n", MEASUREMENT_1_FILE_NAME);
-//                DBG("SENSOR OK\n");
-			} else {
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Clear done - SENSOR OK\r\n", sizeof("Clear done - SENSOR OK\r\n"));
+#endif
+			} else{
 				moutput.out0 = _OFF;
 				moutput.out4 = _OFF; //turn off O7
 				io_setOutput(moutput,ucRegCoilsBuf);
-
 				cycleMeasure = ERROR;
-				SD_cardMsg("3. Cleaning done - SENSOR [NOT] OK\r\n", MEASUREMENT_1_FILE_NAME);
-//                DBG("SENSOR NOT OK\n");
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Clear done - SENSOR [NOT] OK\r\n", sizeof("Clear done - SENSOR [NOT] OK\r\n"));
+#endif
+//
 			}
-			getInput = GET_SENSOR;
 		}
 		/********************************************## 4 ##*******************************************/
 		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
@@ -1560,8 +1532,9 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasureZ = SEN_START;
 				cycleMeasure = WAITRBSTABLEZ;
-//				SD_cardMsg("4. (C=1) Start time measure Z\r\n", MEASUREMENT_1_FILE_NAME);
-//                DBG("C=1 START TIME MEASURE Z\n");
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("(C=1) Start time measure Z\r\n", sizeof("(C=1) Start time measure Z\r\n"));
+#endif
 			}
 		};
 		while ((WAITRBSTABLEZ == cycleMeasure) && (0 == GET_IN0)) // Waiting 200ms
@@ -1575,8 +1548,9 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasureZ = SEN_START;
 				cycleMeasure = MEASUREZ;
-//                DBG("MEASURE Z\n");
-				SD_cardMsg("5. Measure Z\r\n", MEASUREMENT_1_FILE_NAME);
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Measure Z\r\n", sizeof("Measure Z\r\n"));
+#endif
 			}
 		};
 		/*Measure Z*/
@@ -1590,8 +1564,9 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasure = CHECKZVALUE;
 				XStatus = SENSORCHANGE;
-				SD_cardMsg("6. Sensor Z - ON\r\n", MEASUREMENT_1_FILE_NAME);
-//                DBG("SENSOR Z = ON\n");
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Sensor Z = ON\r\n", sizeof("Sensor Z = ON\r\n"));
+#endif
 			}
 			if (_ON == minput.in2) // C=2
 					{
@@ -1601,11 +1576,13 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureZ = SEN_FINISH;
 				getInput = GET_SENSOR;
 				cycleMeasure = CHECKZVALUE;
-				SD_cardMsg("7. (C=2) end measure Z\r\n", MEASUREMENT_1_FILE_NAME);
-//                DBG("C=2 END MEASURE Z\n");
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("(C=2)END measure Z\r\n", sizeof("(C=2)END measure Z\r\n"));
+#endif
 			}
 		};
 		/********************************************## 5 ##*******************************************/
+//		uint32_t retry = 1000;
 		while (((CHECKZVALUE == cycleMeasure) || (Z_OK == cycleMeasure)
 				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN0)) {
 			msensor = io_getSensor();
@@ -1625,15 +1602,21 @@ static void app_Measurement_1(void) { //TODO: check
 				app_SetCurrentMeasureValue(MEASUREMENT_1);
 				mdata.mode = ZONLY;
 				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("(C=2) Measure Z - OK - before show screen Z\r\n", sizeof("(C=2) Measure Z - OK - before show screen Z\r\n"));
+#endif
 				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 				NOT_SHOW_HIS);
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("(C=2) Measure Z - OK - after show screen Z\r\n", sizeof("(C=2) Measure Z - OK - after show screen Z\r\n"));
+#endif
 				cycleMeasure = Z_OK;
 				getInput = GET_BUTTON;
 				XStatus = SENSORCHANGE;
 				YStatus = SENSORCHANGE;
 				process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
-//                DBG("C=2 MEASURE Z OK\n");
-			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
+
+			} else if (/*--retry == 0 &&*/ (CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
 					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
 					{
 				minput.in2 = _OFF;
@@ -1643,16 +1626,18 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasure = Z_NOT_OK;
 				getInput = GET_SENSOR;
 				mdata.mode = ZERROR1;
-//				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
-//				NOT_SHOW_HIS);
-				//delay(100);
-//                DBG("C=2 MEASURE Z NOT OK\n");
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("(C=2) Measure Z - [NOT] OK\r\n", sizeof("(C=2) Measure Z - [NOT] OK\r\n"));
+#endif
 			}
 			if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure))
 					&& (_OFF == minput.in2)) {
 				cycleMeasure = WAITMEASUREX1Y1;
-//                DBG("C=2 cycleMeasure = WAITMEASUREX1Y1\n");
+#ifdef CDC_DEBUG
+//			CDC_Transmit_FS("(C=2 cycleMeasure = WAITMEASUREX1Y1\r\n", sizeof("C=2 cycleMeasure = WAITMEASUREX1Y1\r\n"));
+#endif
 			}
+			HAL_Delay(1);
 		}
 
 		if ((SETVALUEZ == cycleMeasure) && (_ON == mbutton.set)
@@ -1661,7 +1646,9 @@ static void app_Measurement_1(void) { //TODO: check
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
 			cycleMeasure = WAITMEASUREX1Y1;
 			getInput = GET_SENSOR;
-//            DBG("SET Z\n");
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("SET Z\n", sizeof("SET Z\n"));
+#endif
 			app_SetCalibValue(MEASUREMENT_1);
 			app_GetCalibValue(MEASUREMENT_1);
 		}
@@ -1680,6 +1667,9 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
 				cycleMeasureY = SEN_START;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("(C=3) cycleMeasure = MEASUREX1Y1\r\n", sizeof("(C=3) cycleMeasure = MEASUREX1Y1\r\n"));
+#endif
 //                DBG("cycleMeasure = MEASUREX1Y1 C=3\n");
 			}
 		};
@@ -1693,6 +1683,9 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
 				cycleMeasureY = SEN_START;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Start counter X1, Y1\n", sizeof("Start counter X1, Y1\n"));
+#endif
 //                DBG("Start counter X1, Y1\n");
 			}
 		};
@@ -1706,6 +1699,9 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureX = SEN_FINISH;
 				getInput = GET_SENSOR;
 				XStatus = SENSORCHANGE;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("X1 = SEN_FINISH\n", sizeof("X1 = SEN_FINISH\n"));
+#endif
 //				DBG("X1 = SEN_FINISH\n");
 				// DBG("mmeasureValue.X1 = %d\n",mmeasureValue.X1);
 			}
@@ -1716,6 +1712,9 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureY = SEN_FINISH;
 				getInput = GET_SENSOR;
 				YStatus = SENSORCHANGE;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Y1 = SEN_FINISH\n", sizeof("Y1 = SEN_FINISH\n"));
+#endif
 //				DBG("Y1 = SEN_FINISH\n");
 				// DBG("mmeasureValue.Y1 = %d\n",mmeasureValue.Y1);
 			}
@@ -1725,6 +1724,9 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureY = SEN_STOP;
 				cycleMeasure = WAITMEASUREX2Y2;
 				getInput = GET_SENSOR;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("cycleMeasure = WAITMEASUREX2Y2\n", sizeof("cycleMeasure = WAITMEASUREX2Y2\n"));
+#endif
 //                DBG("cycleMeasure = WAITMEASUREX2Y2\n");
 			}
 			//if(_ON == minput.in1) //C=4
@@ -1759,6 +1761,9 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
 				cycleMeasureY = SEN_START;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("(C=4) cycleMeasure = WAITMEASUREX2Y2\r\n", sizeof("(C=4) cycleMeasure = WAITMEASUREX2Y2\r\n"));
+#endif
 //                DBG("cycleMeasure = WAITMEASUREX2Y2 C=4\n");
 			}
 		};
@@ -1772,7 +1777,10 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasureX = SEN_START;
 				cycleMeasureY = SEN_START;
-//                DBG("Start couter X2, Y2\n");
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Start counter X2, Y2\n", sizeof("Start counter X2, Y2\n"));
+#endif
+                DBG("Start couter X2, Y2\n");
 			}
 		};
 		while ((MEASUREX2Y2 == cycleMeasure) && (0 == GET_IN0)) {
@@ -1784,6 +1792,9 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureX = SEN_FINISH;
 				getInput = GET_SENSOR;
 				XStatus = SENSORCHANGE;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("X2 = SEN_FINISH\n", sizeof("X2 = SEN_FINISH\n"));
+#endif
 //                DBG("X2 = SEN_FINISH\n");
 			}
 			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
@@ -1793,6 +1804,9 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureY = SEN_FINISH;
 				getInput = GET_SENSOR;
 				YStatus = SENSORCHANGE;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("Y2 = SEN_FINISH\n", sizeof("Y2 = SEN_FINISH\n"));
+#endif
 //                DBG("Y2 = SEN_FINISH\n");
 			}
 			if ((SEN_FINISH == cycleMeasureX)
@@ -1800,8 +1814,11 @@ static void app_Measurement_1(void) { //TODO: check
 				/*Save D_X1, D_Y1*/
 				cycleMeasureX = SEN_STOP;
 				cycleMeasureY = SEN_STOP;
-				cycleMeasure = WAITSETVALUE;
+				cycleMeasure = CALCULATORVALUE;
 				getInput = GET_BUTTON;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("WAITSETVALUE == cycleMeasure\r\n", sizeof("WAITSETVALUE == cycleMeasure\r\n"));
+#endif
 //                DBG("WAITSETVALUE == cycleMeasure\n");
 			}
 			// if(_ON == minput.in1) //C=5
@@ -1823,42 +1840,23 @@ static void app_Measurement_1(void) { //TODO: check
 			// }
 		};
 
-		/*Robot di chuyển tới vị trí P18*/
-		if ((WAITSETVALUE == cycleMeasure) && (_ON == mbutton.set)) {
-			app_GetCalibValue(MEASUREMENT_1);
-			if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
-					&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
-					&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
-				app_SetCalibValue(MEASUREMENT_1);
-				app_GetCalibValue(MEASUREMENT_1);
-				mledStatus.led1 = _ON;
-				msetCalibValue_1 = CALIBSET;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-			}
-			getInput = GET_SENSOR;
-			cycleMeasure = CALCULATORVALUE;
-//            DBG("cycleMeasure = CALCULATORVALUE\n");
-		}
 		/********************************************## 8 ##*******************************************/
-		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
-				&& (_ON == minput.in2)) // C=5
-				{
-			minput.in2 = _OFF;
-			cycleMeasure = FINISH;
-			getInput = GET_BUTTON;
-			/*Calculator Value - Printf to screen*/
-			app_SetCurrentMeasureValue(MEASUREMENT_1);
-			if (ZONLY == mdata.mode) {
-				mdata.mode = MEASUREALL;
-			} else if (ZERROR1 == mdata.mode) {
-				mdata.mode = ZERROR2;
-			}
-			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-			process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+		while (CALCULATORVALUE == cycleMeasure)  // C=5
+		{
+			minput = io_getInput();
+			if (_ON == minput.in2) {
+				minput.in2 = _OFF;
+				cycleMeasure = FINISH;
+				getInput = GET_BUTTON;
+#ifdef CDC_DEBUG
+				CDC_Transmit_FS("(C=5)cycleMeasure = FINISH\r\n",
+						sizeof("(C=5)cycleMeasure = FINISH\r\n"));
+#endif
 //            DBG("cycleMeasure = FINISH C=5\n");
+			}
+
 		}
 	} while (0 == GET_IN0);
-
 	app_TrigerOutputOFF();
 	moutput.out0 = _OFF;
 	moutput.out1 = _OFF;
@@ -1868,15 +1866,56 @@ static void app_Measurement_1(void) { //TODO: check
 	moutput.out6 = _OFF;
 	moutput.out7 = _OFF;
 
+	if(cycleMeasure == FINISH)
+	{
+		/*Calculator Value - Printf to screen*/
+		app_SetCurrentMeasureValue(MEASUREMENT_1);
+		if (ZONLY == mdata.mode) {
+			mdata.mode = MEASUREALL;
+		} else if (ZERROR1 == mdata.mode) {
+			mdata.mode = ZERROR2;
+		}
+		app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
+		process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+
+
+	timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB); //wait SET button in 6sec
+	do
+	{
+		mbutton = io_getButton();
+	}
+	while(TIME_FINISH != timer_Status(TIMER_CLEARCALIB) && mbutton.set != _ON);
+
+	if (_ON == mbutton.set) {
+		app_GetCalibValue(MEASUREMENT_1);
+		if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
+				&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
+				&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
+			app_SetCalibValue(MEASUREMENT_1);
+			app_GetCalibValue(MEASUREMENT_1);
+			mledStatus.led1 = _ON;
+			msetCalibValue_1 = CALIBSET;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+#ifdef CDC_DEBUG
+		CDC_Transmit_FS("cycleMeasure = SET_DONE\n", sizeof("cycleMeasure = SET_DONE\n"));
+#endif
+		}
+//            DBG("cycleMeasure = CALCULATORVALUE\n");
+	}
+	}
+
 	if ((SENSORNOCHANGE == XStatus) || (SENSORNOCHANGE == YStatus)) {
-		moutput.out1 = _ON;
-//        DBG("SENSOR IS NOT CHANGE\n");
+//		moutput.out1 = _ON;
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("SENSOR NOT CHANGE\r\n", sizeof("SENSOR NOT CHANGE\r\n"));
+#endif
 	} else {
+#ifdef CDC_DEBUG
+			CDC_Transmit_FS("SENSOR CHANGE\r\n", sizeof("SENSOR CHANGE\r\n"));
+#endif
 		moutput.out1 = _OFF;
-//        DBG("SENSOR CHANGE\n");
 	}
 	io_setOutput(moutput,ucRegCoilsBuf);
-//	app_TrigerOutputON();
 	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
 		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
 	}
@@ -2489,7 +2528,7 @@ static void app_TrigerOutputOFF(void) {
 
 static void app_TrigerOutputON(void) {
 	HAL_Delay(100);
-	moutput.out4 = _ON;
+//	moutput.out4 = _ON; //TODO: check
 	io_setOutput(moutput,ucRegCoilsBuf);
 }
 

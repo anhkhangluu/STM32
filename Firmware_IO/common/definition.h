@@ -9,7 +9,7 @@
 #define EEP_START_ADDRESS           50U //(EEP_CURREN_VALUE_ADDRESS + sizeof(MeasureValue))
 #define EEP_MAX_DATA                10U
 
-#define LCD_LINE_SIZE               40U
+#define LCD_LINE_SIZE               40U //16U
 #define _ON                         1U
 #define _OFF                        0U
 
@@ -17,7 +17,7 @@
 #define TIMER_Y                     1U
 #define TIMER_Z                     0U
 #define TIMER_CLEARSENSOR           2U
-#define TIMER_ERRORSENSOR			3U
+//#define TIMER_ERRORSENSOR			3U
 #define TIMER_CLEARCALIB            2U
 #define TIMERCLEARSENSOR            2000U * 10U
 #define TIMERERRORSENSOR			5000U * 10U
