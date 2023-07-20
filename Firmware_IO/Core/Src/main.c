@@ -694,9 +694,9 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
@@ -1496,8 +1496,8 @@ static void app_Measurement_1(void) { //TODO: check
 	mmeasureValue.X2 = 0;
 	mmeasureValue.Y2 = 0;
 	mmeasureValue.Z = 0;
-
-	SD_cardMsg("1. Start measurement 1", MEASUREMENT_1_FILE_NAME);
+	SD_cardMsg("---------------------------\r\n", MEASUREMENT_1_FILE_NAME);
+	SD_cardMsg("1. Start measurement 1\r\n", MEASUREMENT_1_FILE_NAME);
 	do {
 		if (GET_BUTTON == getInput) {
 			mbutton = io_getButton();
@@ -1518,7 +1518,7 @@ static void app_Measurement_1(void) { //TODO: check
 			moutput.out4 = _ON; // O7 ON start clear sensor
 			io_setOutput(moutput,ucRegCoilsBuf);
 //            DBG("cycleMeasure = CLEARSENSOR\n");
-			SD_cardMsg("2. Cleaning sensor", MEASUREMENT_1_FILE_NAME);
+//			SD_cardMsg("2. Cleaning sensor\r\n", MEASUREMENT_1_FILE_NAME);
 		}
 		/********************************************## 2 ##*******************************************/
 		/********************************************## 3 ##*******************************************/
@@ -1534,7 +1534,7 @@ static void app_Measurement_1(void) { //TODO: check
 				msensor.s0 = _OFF;
 				msensor.s1 = _OFF;
 				cycleMeasure = WAITMEASUREZ;
-				SD_cardMsg("3. Cleaning done - SENSOR OK", MEASUREMENT_1_FILE_NAME);
+				SD_cardMsg("3. Cleaning done - SENSOR OK\r\n", MEASUREMENT_1_FILE_NAME);
 //                DBG("SENSOR OK\n");
 			} else {
 				moutput.out0 = _OFF;
@@ -1542,7 +1542,7 @@ static void app_Measurement_1(void) { //TODO: check
 				io_setOutput(moutput,ucRegCoilsBuf);
 
 				cycleMeasure = ERROR;
-				SD_cardMsg("3. Cleaning done - SENSOR [NOT] OK", MEASUREMENT_1_FILE_NAME);
+				SD_cardMsg("3. Cleaning done - SENSOR [NOT] OK\r\n", MEASUREMENT_1_FILE_NAME);
 //                DBG("SENSOR NOT OK\n");
 			}
 			getInput = GET_SENSOR;
@@ -1560,7 +1560,7 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasureZ = SEN_START;
 				cycleMeasure = WAITRBSTABLEZ;
-				SD_cardMsg("4. (C=1) Start time measure Z", MEASUREMENT_1_FILE_NAME);
+//				SD_cardMsg("4. (C=1) Start time measure Z\r\n", MEASUREMENT_1_FILE_NAME);
 //                DBG("C=1 START TIME MEASURE Z\n");
 			}
 		};
@@ -1576,7 +1576,7 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureZ = SEN_START;
 				cycleMeasure = MEASUREZ;
 //                DBG("MEASURE Z\n");
-				SD_cardMsg("5. Measure Z", MEASUREMENT_1_FILE_NAME);
+				SD_cardMsg("5. Measure Z\r\n", MEASUREMENT_1_FILE_NAME);
 			}
 		};
 		/*Measure Z*/
@@ -1590,7 +1590,7 @@ static void app_Measurement_1(void) { //TODO: check
 				getInput = GET_SENSOR;
 				cycleMeasure = CHECKZVALUE;
 				XStatus = SENSORCHANGE;
-				SD_cardMsg("6. Sensor Z - ON", MEASUREMENT_1_FILE_NAME);
+				SD_cardMsg("6. Sensor Z - ON\r\n", MEASUREMENT_1_FILE_NAME);
 //                DBG("SENSOR Z = ON\n");
 			}
 			if (_ON == minput.in2) // C=2
@@ -1601,7 +1601,7 @@ static void app_Measurement_1(void) { //TODO: check
 				cycleMeasureZ = SEN_FINISH;
 				getInput = GET_SENSOR;
 				cycleMeasure = CHECKZVALUE;
-				SD_cardMsg("7. (C=2) end measure Z", MEASUREMENT_1_FILE_NAME);
+				SD_cardMsg("7. (C=2) end measure Z\r\n", MEASUREMENT_1_FILE_NAME);
 //                DBG("C=2 END MEASURE Z\n");
 			}
 		};
@@ -2734,7 +2734,7 @@ static void app_Init(void) {
 #endif
 
     io_setLedStatus(mledStatus, ucRegCoilsBuf);
-	app_TrigerOutputON();
+//	app_TrigerOutputON(); //TODO check
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
