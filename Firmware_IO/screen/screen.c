@@ -20,8 +20,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 		else
 			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
 								measIndex);
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
-				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,	"20%02d-%02d-%02d%02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
@@ -38,7 +37,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 					"X=%+-#1.2f  Y=%+-#1.2f", (float) data.coordinates.X / 100,
 					(float) data.coordinates.Y / 100);
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-					"Z=....   R=%+-#1.2f", (float) data.coordinates.R / 100);
+					"Z=....  R=%+-#1.2f", (float) data.coordinates.R / 100);
 		} else if (ZONLY == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,

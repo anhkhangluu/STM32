@@ -50,9 +50,15 @@ void io_setLedStatus(ledStatus led, uint8_t *MBReg)
 	MBReg[9] = led.led2;
 	MBReg[10] = led.led3;
 //    led.led0>0?HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,_ON):HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,_OFF);
-    MBReg[8]==0?HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,_ON):HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,_OFF);
-    MBReg[9]==0?HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,_ON):HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,_OFF);
-    MBReg[10]==0?HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,_ON):HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,_OFF);
+	MBReg[8] == 0 ?
+			HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, _ON) :
+			HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, _OFF);
+	MBReg[9] == 0 ?
+			HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, _ON) :
+			HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, _OFF);
+	MBReg[10] == 0 ?
+			HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, _ON) :
+			HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, _OFF);
 }
 
 /*Test Function*/
