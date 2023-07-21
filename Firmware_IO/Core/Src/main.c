@@ -2921,21 +2921,21 @@ CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure) {
 	return cycleMeasure;
 }
 
-CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure)
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure) //TODO: using falling interrupt in2
  {
 	while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
 		minput = io_getInput();
 		if (_ON == minput.in2) //C=1
 				{
 			timer_Start(TIMER_Z, TIMERMAXVALUE); //start timer to measure Z
-			minput.in2 = _OFF;
 			msensor.s0 = _OFF;
 			msensor.s1 = _OFF;
+			minput.in2 = _OFF;
 			cycleMeasure = MEASUREZ;
 			DBG("Measure Z start\r\n");
 		}
 	}
-	HAL_Delay(1000);//TODO: checkkkkkkkkkkkkkkkk
+	HAL_Delay(200);
 	while ((MEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
 		msensor = io_getSensor();
 		minput = io_getInput();
