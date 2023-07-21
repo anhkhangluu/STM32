@@ -48,6 +48,7 @@ typedef enum _CycleMeasure
     WAITSETVALUE,
     CALCULATORVALUE,
     _ERROR,
+	_ERROR_XY,
     FINISH
 }CycleMeasure;
 

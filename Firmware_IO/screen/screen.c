@@ -20,7 +20,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 		else
 			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
 								measIndex);
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,	"20%02d-%02d-%02d%02d:%02d", data.time.year, data.time.month,
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,	"20%02d-%02d-%02d% 02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
@@ -75,14 +75,16 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode || data.mode == ZERROR2) {
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=%+-#2.1f°",
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=%+-#2.1f",
 					(float) data.coordinates.aX / 10);
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=%+-#2.1f°",
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=%+-#2.1f",
 					(float) data.coordinates.aY / 10);
+			screenBuffer.line3[7] = 0xDF;
+			screenBuffer.line4[7] = 0xDF;
 		} else if (ZERROR1 == data.mode || data.mode == ZONLY) {
 
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=......");
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=......");
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=....");
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=....");
 		} else {
             snprintf(screenBuffer.line2,LCD_LINE_SIZE+1,"                ");
             snprintf(screenBuffer.line3,LCD_LINE_SIZE+1,"   No Data...!  ");
@@ -91,16 +93,10 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 	}
 	else
 	{
-		if (!showHisFlag)
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
-					measIndex);
-		else
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
-					measIndex);
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
-						"....-..-.. ..:..");
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=......");
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=......");
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, " ");
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=....");
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=....");
 	}
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
@@ -114,7 +110,7 @@ void screen_Time(Time time) {
 	snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d:%02d",
 			time.hour, time.minute);
 
-	LCD_Puts(0, 0, "  TIME SETTING  ");
+	LCD_Puts(0, 0, "  TIME SETTING");
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 }
