@@ -46,7 +46,12 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
+#define CDC_DEBUG
+#ifdef CDC_DEBUG
+#define DBG(x) CDC_Transmit_FS(x,sizeof(x))
+#else
+#define DBG(x)
+#endif //CDC_DEBUG
 /* USER CODE END EM */
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);

@@ -8,6 +8,7 @@
 #include "LCD.h"
 #include "screen.h"
 
+#include "main.h" ///use for cdc debug
 
 static screenData screenBuffer;
 
@@ -29,29 +30,35 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
 					"Z=%+-#1.2f  R=%+-#1.2f", (float) data.coordinates.Z / 100,
 					(float) data.coordinates.R / 100);
+			DBG("LCD - MESUREALL\n");
 		} else if (ZERROR1 == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=.... ");
+			DBG("LCD - ZERROR1\n");
 		} else if (ZERROR2 == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
 					"X=%+-#1.2f  Y=%+-#1.2f", (float) data.coordinates.X / 100,
 					(float) data.coordinates.Y / 100);
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
 					"Z=....  R=%+-#1.2f", (float) data.coordinates.R / 100);
+			DBG("LCD - ZERROR2\n");
 		} else if (ZONLY == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
 					"Z=%+-#1.2f  R=.... ", (float) data.coordinates.Z / 100);
+			DBG("LCD - ZONLY\n");
 		} else {
 			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "                ");
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   No Data...!  ");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "                ");
+			DBG("LCD - No data\n");
 		}
 	} else {
 		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, " ");
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=.... ");
+		DBG("LCD - Calib no set\n");
 	}
 
 	LCD_Puts(0, 0, screenBuffer.line1);

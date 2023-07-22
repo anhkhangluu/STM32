@@ -66,12 +66,7 @@
 
 #define EMPTY			-1 //this is the value return when at address of flash is empty data, this must be modify by other compiler
 
-#define CDC_DEBUG
-#ifdef CDC_DEBUG
-#define DBG(x) CDC_Transmit_FS(x,sizeof(x))
-#else
-#define DBG(x)
-#endif //CDC_DEBUG
+
 
 #define CDC_LCD_DEBUG
 #ifdef CDC_LCD_DEBUG
@@ -149,7 +144,9 @@ void Callback_IPConflict(void) {
 
 }
 
-static void process_SD_Card(dataMeasure data, char *fileName);
+static void write_SDCard(dataMeasure data, char *fileName);
+static void read_SDCard(dataMeasure data, char *fileName, uint8_t lineIndex);
+
 static void W5500_init();
 
 /*---------------app.c------------*/
@@ -231,8 +228,20 @@ int main(void) {
 	HAL_TIM_Base_Start(&htim3);
 	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
 
-	app_Init();
 
+
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,0);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,1);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,2);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,3);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,4);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,5);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,6);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,7);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,8);
+	read_SDCard(mdata,MEASUREMENT_1_FILE_NAME,9);
+
+	app_Init();
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -258,10 +267,8 @@ int main(void) {
 			minput.in1 = _OFF;
 			app_Measurement_2(); //measurement 2
 		}
-		//------------------------------------------------------------------------------------------
 
-//////////////////////////////////////////////////
-		if (_ON == mbutton.reset) {
+		if (_ON == mbutton.reset) { //reset datacalib
 			mbutton.reset = _OFF;
 			timer_Start(TIMER_CLEARCALIB, TIMERMAXVALUE);
 			do {
@@ -269,19 +276,7 @@ int main(void) {
 			} while (_ON == io_getButton().reset);
 			_time = time_Stop(TIMER_CLEARCALIB);
 
-			if ((_time >= 10000) && (_time <= 30000)) {
-//				app_TrigerOutputOFF();
-				moutput.out0 = _OFF;
-				moutput.out1 = _OFF;
-				moutput.out2 = _OFF;
-				moutput.out3 = _OFF;
-				moutput.out4 = _OFF;
-				moutput.out5 = _OFF;
-				moutput.out6 = _OFF;
-				moutput.out7 = _OFF;
-				io_setOutput(moutput, ucRegCoilsBuf);
-				app_TrigerOutputON();
-			} else if ((_time >= 50000)) {
+			if ((_time >= 50000 /*5sec*/)) {
 				DBG("Clear DataCalib by RESET button\n");
 				MeasureValue vl = { 0, 0, 0, 0, 0 };
 				FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
@@ -290,22 +285,8 @@ int main(void) {
 				app_GetCalibValue(MEASUREMENT_1);
 				app_GetCalibValue(MEASUREMENT_2);
 
-				mledStatus.led2 = _ON;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-				HAL_Delay(500);
-				mledStatus.led2 = _OFF;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-				HAL_Delay(500);
-				mledStatus.led2 = _ON;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-				HAL_Delay(500);
-				mledStatus.led2 = _OFF;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-				HAL_Delay(500);
-				mledStatus.led2 = _ON;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-				HAL_Delay(500);
-				mledStatus.led2 = _OFF;
+				mledStatus.led1= _OFF;
+				mledStatus.led2= _OFF;
 				io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
 				msetCalibValue_1 = CALIBRESET;
@@ -981,10 +962,10 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 #endif
 }
 
-static void process_SD_Card(dataMeasure data, char *fileName) {
+static void write_SDCard(dataMeasure data, char *fileName) {
 	FATFS FatFs;
 	FIL fil;
-	char buff[110];
+	char buff[101];
 	unsigned int BytesWr;
 	f_mount(&FatFs, "", 0); //mount SD card
 #if 0	//turn on this macro if you want to check the free space of SD card
@@ -999,14 +980,49 @@ static void process_SD_Card(dataMeasure data, char *fileName) {
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
 	f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE); //In this mode, it will create the file if file not existed
+
 	sprintf(buff,
-			"20%02d-%02d-%02d %02d:%02d  R =%d; X =%d; Y =%d; Z =%d; A =%d ; B =%d; mode =%d\r\n",
+			"20%02d-%02d-%02d %02d:%02d  R =%d; X =%d; Y =%d; Z =%d; A =%d ; B =%d; mode =%d\n",
 			data.time.year, data.time.month, data.time.day, data.time.hour,
 			data.time.minute, data.coordinates.R, data.coordinates.X,
 			data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
 			data.coordinates.aY, data.mode);
 	f_lseek(&fil, f_size(&fil));
 	f_write(&fil, buff, strlen(buff), &BytesWr);
+	f_close(&fil);
+	f_mount(NULL, "", 0);
+}
+
+static void read_SDCard(dataMeasure data, char *fileName, uint8_t lineIndex) {
+	FATFS FatFs;
+	FIL fil;
+	char buff[101];
+	unsigned int totalLines = 0;
+
+	if(f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
+		return;
+	if(f_open(&fil, fileName, FA_READ)!= FR_OK)
+		return;
+
+	// Count the total number of lines in the file
+    while (f_gets(buff, 100, &fil) != FR_OK) {
+    	totalLines++;
+    }
+
+    f_lseek(&fil, 0); // move pointer to beginning of file
+
+    while(totalLines - lineIndex > 0)
+    {
+    	totalLines --;
+    	f_gets(buff, 100, &fil);
+    }
+
+    sscanf(buff, "20%02d-%02d-%02d %02d:%02d  R =%d; X =%d; Y =%d; Z =%d; A =%d ; B =%d; mode =%d", &data.time.year, &data.time.month, &data.time.day, &data.time.hour,
+			&data.time.minute, &data.coordinates.R, &data.coordinates.X,
+			&data.coordinates.Y, &data.coordinates.Z, &data.coordinates.aX,
+			&data.coordinates.aY, &data.mode);
+
+
 	f_close(&fil);
 	f_mount(NULL, "", 0);
 }
@@ -1477,7 +1493,7 @@ static void app_Measurement_1(void) {
 
 	cycleMeasure = meas_checkSensor(cycleMeasure);
 	if (cycleMeasure == _ERROR) {
-
+		DBG("cycleMeasure == _ERROR");
 	}
 	HAL_Delay(1);
 	cycleMeasure = meas_measurementZ(cycleMeasure);
@@ -1532,21 +1548,30 @@ static void app_Measurement_1(void) {
 			minput.in2 = _OFF;
 			cycleMeasure = FINISH;
 			DBG("cycleMeasure = FINISH");
+
+			app_SetCurrentMeasureValue(MEASUREMENT_1);
+			if (ZONLY == mdata.mode) {
+				mdata.mode = MEASUREALL;
+			} else if (ZERROR1 == mdata.mode) {
+				mdata.mode = ZERROR2; // macro for LCD to print Z =... (Z cannot measure)
+			}
+			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
+			write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
+
+			if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
+				FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
+			}
+			app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 			while (_ON == io_getInput().in2 && (0 == GET_IN0))
 				;
 		}
 	}
 
-#ifdef CDC_DEBUG
-	if (cycleMeasure == _ERROR)
-		DBG("cycleMeasure == _ERROR");
-#endif
-
 	while (cycleMeasure == FINISH && (0 == GET_IN0)) {
 		//waiting for GET_IN0 = 1 to set calib
 	}
 
-	if (GET_IN0 == 1) {
+	if (GET_IN0 == 1 /*end of cycle measurement */) {
 		moutput.out0 = _OFF;
 		moutput.out1 = _OFF;
 		moutput.out2 = _OFF;
@@ -1558,15 +1583,6 @@ static void app_Measurement_1(void) {
 		io_setOutput(moutput, ucRegCoilsBuf);
 
 		if (cycleMeasure == FINISH) {
-			app_SetCurrentMeasureValue(MEASUREMENT_1);
-			if (ZONLY == mdata.mode) {
-				mdata.mode = MEASUREALL;
-			} else if (ZERROR1 == mdata.mode) {
-				mdata.mode = ZERROR2; // macro for LCD to print Z =... (Z cannot measure)
-			}
-			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-			process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
-
 			/*-----SET value -----*/
 			timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB); //wait SET button in 6sec
 			do {
@@ -1580,18 +1596,14 @@ static void app_Measurement_1(void) {
 						&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
 					app_SetCalibValue(MEASUREMENT_1);
 					app_GetCalibValue(MEASUREMENT_1);
-					mledStatus.led1 = _ON;
+					mledStatus.led1 = _ON; //TODO: led 2 for measurement2
 					msetCalibValue_1 = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
 					DBG("cycleMeasure = SET_DONE\n");
 				}
 			}
-			if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
-				FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
-			}
 		}
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 	}
 }
 static void app_Measurement_2(void) {
@@ -1745,7 +1757,7 @@ static void app_Measurement_2(void) {
 //				getInput = GET_BUTTON;
 //				XStatus = SENSORCHANGE;
 //				YStatus = SENSORCHANGE;
-//				process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
+//				write_SDCard(mdata, MEASUREMENT_2_FILE_NAME);
 ////                DBG("C=2 MEASURE Z OK\n");
 //			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == minput.in2)
 //					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
@@ -1972,7 +1984,7 @@ static void app_Measurement_2(void) {
 //			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
 //			screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
 //			NOT_SHOW_HIS);
-//			process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
+//			write_SDCard(mdata, MEASUREMENT_2_FILE_NAME);
 ////            DBG("cycleMeasure = FINISH C=5\n");
 //		}
 //	} while (0 == GET_IN1);
@@ -2433,31 +2445,29 @@ static void app_Init(void) {
 	FLASH_WriteVDRLZ(temp);
 
 	app_GetCalibValue(MEASUREMENT_1);
-	if ((mcalibValue.X1 == EMPTY) && (mcalibValue.X2 == EMPTY)
-			&& (mcalibValue.Y1 == EMPTY) && (mcalibValue.Y2 == EMPTY)
-			&& (mcalibValue.Z == EMPTY)) {
-		mledStatus.led3 = _OFF;
+	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0)
+			&& (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0)
+			&& (mcalibValue.Z == 0)) {
+		mledStatus.led1 = _OFF;
 		msetCalibValue_1 = CALIBRESET;
 	} else {
-		mledStatus.led3 = _ON;
+		mledStatus.led1 = _ON;
 		msetCalibValue_1 = CALIBSET;
 	}
-#if 0
+
 	app_GetCalibValue(MEASUREMENT_2);
-    if((mcalibValue.X1 == EMPTY) && (mcalibValue.X2 == EMPTY) && (mcalibValue.Y1 == EMPTY) && (mcalibValue.Y2 == EMPTY) && (mcalibValue.Z == EMPTY))
+    if((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0))
     {
-        mledStatus.led3 = _OFF;
+        mledStatus.led2 = _OFF;
         msetCalibValue_2 = CALIBRESET;
     }
     else
     {
-        mledStatus.led3 = _ON;
+        mledStatus.led2 = _ON;
         msetCalibValue_2 = CALIBSET;
     }
-#endif
 
 	io_setLedStatus(mledStatus, ucRegCoilsBuf);
-//	app_TrigerOutputON(); //TODO check
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
@@ -2469,14 +2479,11 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 		index = 9;
 	else
 		index--; //decrease index of measurement history
-//	uint8_t buffer[100];
-//	sprintf(buffer, "LCD- Mainscreen index = %d", index);
-//	DBG_LCD(buffer);
 
 	data = FLASH_ReadDataMeasure(measurementIndex, index);
 	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
 	uint8_t exit = 0;
-//	DBG_LCD("LCD - Showing main screen measurement 1");
+
 	do {
 		mbutton = io_getButton();
 		minput = io_getInput();
@@ -2578,7 +2585,7 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure) //TODO: using falling 
 			app_SetCurrentMeasureValue(MEASUREMENT_1);
 			mdata.mode = ZONLY;
 			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-			process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+			write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
 			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
 							NOT_SHOW_HIS);
 
