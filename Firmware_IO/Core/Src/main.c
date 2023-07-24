@@ -108,7 +108,7 @@ uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = { 0 };
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
-static Time mtime = { 23, 07, 12, 06, 00, 00 };
+static Time mtime = { 24, 07, 12, 06, 00, 00 };
 uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
@@ -145,7 +145,7 @@ void Callback_IPConflict(void) {
 }
 
 static void write_SDCard(dataMeasure data, char *fileName);
-static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex);
+static void read_SDCard(char *fileName, uint8_t lineIndex, dataMeasure *data);
 
 static void W5500_init();
 
@@ -175,7 +175,7 @@ static void updateMBRegister(void);
 
 /*----------cycle measurement function---------*/
 CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure);
-CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure);
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex);
 CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure);
 CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure);
 
@@ -227,8 +227,11 @@ int main(void) {
 	HAL_TIM_Base_Start_IT(&htim1); //timer interrupt every 100us
 	HAL_TIM_Base_Start(&htim3);
 	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
+	HAL_PWR_EnableBkUpAccess();
 
-	app_Init(); // test FLASH WRITE/read
+	app_Init();
+
+//	read_SDCard(MEASUREMENT_1_FILE_NAME, 0, &mdata);
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -953,9 +956,11 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 static void write_SDCard(dataMeasure data, char *fileName) {
 	FATFS FatFs;
 	FIL fil;
-	char buff[101];
+	char buff[80];
 	unsigned int BytesWr;
-	f_mount(&FatFs, "", 0); //mount SD card
+
+	if(f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
+		return;
 #if 0	//turn on this macro if you want to check the free space of SD card
 		DWORD fre_clust;
 		uint32_t totalSpace;
@@ -967,26 +972,82 @@ static void write_SDCard(dataMeasure data, char *fileName) {
 		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
-	f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE); //In this mode, it will create the file if file not existed
-
 	sprintf(buff,
-			"20%02d-%02d-%02d %02d:%02d  R =%d; X =%d; Y =%d; Z =%d; A =%d ; B =%d; mode =%d\n",
+			"20%02u-%02u-%02u %02u:%02u,%ld,%ld,%ld,%ld,%ld,%ld,%u\n",
 			data.time.year, data.time.month, data.time.day, data.time.hour,
 			data.time.minute, data.coordinates.R, data.coordinates.X,
 			data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
 			data.coordinates.aY, data.mode);
-	f_lseek(&fil, f_size(&fil));
-	f_write(&fil, buff, strlen(buff), &BytesWr);
-	f_close(&fil);
-	f_mount(NULL, "", 0);
-}
+	if (f_open(&fil, fileName, FA_OPEN_ALWAYS | FA_WRITE) == FR_OK) //In this mode, it will create the file if file not existed
+			{
+		f_lseek(&fil, f_size(&fil));
+		f_write(&fil, buff, strlen(buff), &BytesWr);
+		f_close(&fil);
+	}
+	else
+	{
+		DBG("Cannot write to SD_Card");
+	}
 
-static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
+}
+#if 0
+static void read_SDCard(char *fileName, uint8_t lineIndex, dataMeasure *data) {
 	FATFS FatFs;
 	FIL fil;
 	unsigned int totalLines = 0;
 	char buffer[110];
-	dataMeasure data;
+	if (f_mount(&FatFs, "", 1) != FR_OK) //mount SD card
+		return;
+//	dataMeasure data;
+
+	if (f_open(&fil, fileName, FA_READ) == FR_OK) {
+		// Count the total number of lines in the file
+		while (f_gets(buffer, sizeof(buffer), &fil) != FR_OK) {
+//		if (strlen(buffer) == 0) {
+//			// Empty line, consider it as the end of the file
+//			break;
+//		}
+			totalLines++;
+		}
+
+		f_lseek(&fil, 0); // move pointer to beginning of file
+
+		while (totalLines - lineIndex > 0) {
+			totalLines--;
+			f_gets(buffer, sizeof(buffer), &fil);
+		}
+		f_close(&fil);
+	}
+	else
+	{
+		return;
+	}
+
+    int day, month, year, hour, minute, mode, R, X, Y, Z, A, B;
+    int items_parsed = sscanf(buffer, "20%02d-%02d-%02d %02d:%02d %d, %d, %d, %d, %d, %d, %d\n",
+                                  &year, &month, &day, &hour, &minute, &R, &X, &Y, &Z, &A, &B, &mode);
+    if(items_parsed != 12)
+    	return;
+    data->time.year = year;
+    data->time.month = month;
+    data->time.day = day;
+    data->time.hour = hour;
+    data->time.minute = year;
+
+    data->coordinates.R = R;
+    data->coordinates.X = X;
+    data->coordinates.Y = Y;
+	data->coordinates.Z = Z;
+	data->coordinates.aX = A;
+    data->coordinates.aY = B;
+	data->mode = mode;
+}
+#else
+static void read_SDCard(char *fileName, uint8_t lineIndex,dataMeasure *data) {
+	FATFS FatFs;
+	FIL fil;
+	char buff[101];
+	unsigned int totalLines = 0;
 
 	if(f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
 		return;
@@ -994,7 +1055,7 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
 		return;
 
 	// Count the total number of lines in the file
-    while (f_gets(buffer, 100, &fil) != FR_OK) {
+    while (f_gets(buff, 100, &fil) != FR_OK) {
     	totalLines++;
     }
 
@@ -1003,32 +1064,20 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
     while(totalLines - lineIndex > 0)
     {
     	totalLines --;
-    	f_gets(buffer, sizeof(buffer), &fil);
+    	f_gets(buff, 101, &fil);
     }
-
-    int day, month, year, hour, minute, mode, R, X, Y, Z, A, B;
-    int items_parsed = sscanf(buffer, "20%02d-%02d-%02d %02d:%02d  R =%d; X =%d; Y =%d; Z =%d; A =%d ; B =%d; mode =%d",
-                                  &year, &month, &day, &hour, &minute, &R, &X, &Y, &Z, &A, &B, &mode);
-    if(items_parsed != 12)
+    f_close(&fil);
+    f_mount(NULL, "", 0);
+    uint8_t itemparse = sscanf(buff, "20%02hhu-%02hhu-%02hhu %02hhu:%02hhu,%d,%d,%d,%d,%d,%d,%hhu\n", &data->time.year, &data->time.month, &data->time.day, &data->time.hour,
+			&data->time.minute, &data->coordinates.R, &data->coordinates.X,
+			&data->coordinates.Y, &data->coordinates.Z, &data->coordinates.aX,
+			&data->coordinates.aY, &data->mode);
+    if(itemparse != 12)
+    {
     	return;
-    data.time.year = year;
-    data.time.month = month;
-    data.time.day = day;
-    data.time.hour = hour;
-    data.time.minute = year;
-
-    data.coordinates.R = R;
-    data.coordinates.X = X;
-    data.coordinates.Y = Y;
-	data.coordinates.Z = Z;
-	data.coordinates.aX = A;
-    data.coordinates.aY = B;
-	data.mode = mode;
-
-	f_close(&fil);
-	f_mount(NULL, "", 0);
-	return data;
+    }
 }
+#endif
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 	if (htim == &htim1) {
@@ -1053,7 +1102,7 @@ static void app_SettingVDLRZ(void) {
 	LCD_Clear();
 	do {
 		if (cycle == V_set) {
-			FLASH_ReadVDRLZ(&buffer);
+			buffer = FLASH_ReadVDRLZ();
 			screen_setVDRLZ(buffer, cycle);
 			do {
 				mbutton = io_getButton();
@@ -1087,7 +1136,7 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == V_set);
 		}
 		if (cycle == D_set) {
-			FLASH_ReadVDRLZ(&buffer);
+			buffer = FLASH_ReadVDRLZ();
 			screen_setVDRLZ(buffer, cycle);
 			do {
 				mbutton = io_getButton();
@@ -1165,7 +1214,7 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == R_set);
 		}
 		if (cycle == L_set) {
-			FLASH_ReadVDRLZ(&buffer);
+			buffer = FLASH_ReadVDRLZ();
 			screen_setVDRLZ(buffer, cycle);
 			do {
 				mbutton = io_getButton();
@@ -1204,7 +1253,7 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == L_set);
 		}
 		if (cycle == Z_set) {
-			FLASH_ReadVDRLZ(&buffer);
+			buffer = FLASH_ReadVDRLZ();
 			screen_setVDRLZ(buffer, cycle);
 			do {
 				mbutton = io_getButton();
@@ -1238,9 +1287,8 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == Z_set);
 		}
 	} while (exit == 0);
-
-	if (exit)
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
+//	dataMeasure temp = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 // app.c
 static void app_SettingRtc(void) {
@@ -1472,8 +1520,8 @@ static void app_SettingRtc(void) {
 			} while (SET_MINUTE == cycle);
 		}
 	} while (0 == exit);
-	if (exit)
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
+//	dataMeasure temp = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
 static void app_Measurement_1(void) {
@@ -1499,7 +1547,7 @@ static void app_Measurement_1(void) {
 		DBG("cycleMeasure == _ERROR");
 	}
 	HAL_Delay(1);
-	cycleMeasure = meas_measurementZ(cycleMeasure);
+	cycleMeasure = meas_measurementZ(cycleMeasure, MEASUREMENT_1);
 	HAL_Delay(1);
 	cycleMeasure = meas_measurementX1Y1(cycleMeasure);
 	HAL_Delay(1);
@@ -1564,6 +1612,139 @@ static void app_Measurement_1(void) {
 				write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
 			}
 			app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
+				while (_ON == io_getInput().in2 && (0 == GET_IN0))
+					;
+		}
+	}
+
+	while (cycleMeasure == FINISH && (0 == GET_IN0)) {
+		//waiting for GET_IN0 = 1 to set calib
+	}
+
+	if (GET_IN0 == 1 /*end of cycle measurement */) {
+		moutput.out0 = _OFF;
+		moutput.out1 = _OFF;
+		moutput.out2 = _OFF;
+		moutput.out3 = _OFF;
+		moutput.out4 = _OFF;
+		moutput.out5 = _OFF;
+		moutput.out6 = _OFF;
+		moutput.out7 = _OFF;
+		io_setOutput(moutput, ucRegCoilsBuf);
+
+		if (cycleMeasure == FINISH && CALIBRESET == msetCalibValue_1) {
+			/*-----SET value -----*/
+			timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB); //wait SET button in 6sec
+			do {
+				mbutton = io_getButton();
+			} while (TIME_FINISH != timer_Status(TIMER_CLEARCALIB)
+					&& mbutton.set != _ON);
+			if (_ON == mbutton.set) {
+				app_GetCalibValue(MEASUREMENT_1);
+				if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
+						&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
+						&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
+					app_SetCalibValue(MEASUREMENT_1);
+					app_GetCalibValue(MEASUREMENT_1);
+					mledStatus.led1 = _ON;
+					msetCalibValue_1 = CALIBSET;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
+					DBG("cycleMeasure = SET_DONE\n");
+				}
+			}
+		}
+	}
+}
+static void app_Measurement_2(void) {
+
+	volatile CycleMeasure cycleMeasure = STOP;
+
+	mdata.coordinates.X = 0;
+	mdata.coordinates.Y = 0;
+	mdata.coordinates.Z = 0;
+	mdata.coordinates.aX = 0;
+	mdata.coordinates.aY = 0;
+	mdata.mode = NONE;
+
+	mmeasureValue.X1 = 0;
+	mmeasureValue.Y1 = 0;
+	mmeasureValue.X2 = 0;
+	mmeasureValue.Y2 = 0;
+	mmeasureValue.Z = 0;
+
+	DBG("===START MEASUREMENT 2===\r\n");
+
+	cycleMeasure = meas_checkSensor(cycleMeasure);
+	if (cycleMeasure == _ERROR) {
+		DBG("cycleMeasure == _ERROR");
+	}
+	HAL_Delay(1);
+	cycleMeasure = meas_measurementZ(cycleMeasure, MEASUREMENT_2);
+	HAL_Delay(1);
+	cycleMeasure = meas_measurementX1Y1(cycleMeasure);
+	HAL_Delay(1);
+	cycleMeasure = meas_measurementX2Y2(cycleMeasure);
+	HAL_Delay(1);
+
+	while (cycleMeasure == _ERROR_XY) {
+		DBG("Sensor X/Y Error");
+		uint32_t _time = 0;
+		mledStatus.led1 = _ON;
+		mledStatus.led2 = _ON;
+		io_setLedStatus(mledStatus, ucRegCoilsBuf);
+		HAL_Delay(500);
+		mledStatus.led1 = _OFF;
+		mledStatus.led2 = _OFF;
+		io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
+		moutput.out2 = _ON;
+		moutput.out3 = _ON;
+		io_setOutput(moutput, ucRegCoilsBuf);
+
+		//TODO: man hinh hien thi ERROR
+
+		if (io_getButton().reset == _ON) {
+			timer_Start(TIMER_CLEARSENSOR, TIMERMAXVALUE);
+			while (io_getButton().reset == _ON)
+				;
+			_time = time_Stop(TIMER_CLEARSENSOR);
+
+		}
+		if (_time > 20000) //time press reset button longer than 2sec
+				{
+			mledStatus.led1 = _OFF;
+			mledStatus.led2 = _OFF;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
+			moutput.out2 = _OFF;
+			moutput.out3 = _OFF;
+			io_setOutput(moutput, ucRegCoilsBuf);
+			cycleMeasure = ERROR;
+		}
+
+	}
+
+	while (CALCULATORVALUE == cycleMeasure && (0 == GET_IN0)) {
+		minput = io_getInput();
+		if (_ON == minput.in2)  //C = 5
+				{
+			minput.in2 = _OFF;
+			cycleMeasure = FINISH;
+			DBG("cycleMeasure = FINISH");
+
+			app_SetCurrentMeasureValue(MEASUREMENT_2);
+			if (ZONLY == mdata.mode) {
+				mdata.mode = MEASUREALL;
+			} else if (ZERROR1 == mdata.mode) {
+				mdata.mode = ZERROR2; // macro for LCD to print Z =... (Z cannot measure)
+			}
+			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
+
+			if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_2)) {
+				write_SDCard(mdata, MEASUREMENT_2_FILE_NAME);
+			}
+			app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
 			while (_ON == io_getInput().in2 && (0 == GET_IN0))
 				;
 		}
@@ -1584,7 +1765,7 @@ static void app_Measurement_1(void) {
 		moutput.out7 = _OFF;
 		io_setOutput(moutput, ucRegCoilsBuf);
 
-		if (cycleMeasure == FINISH) {
+		if (cycleMeasure == FINISH && CALIBRESET == msetCalibValue_2) {
 			/*-----SET value -----*/
 			timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB); //wait SET button in 6sec
 			do {
@@ -1592,14 +1773,14 @@ static void app_Measurement_1(void) {
 			} while (TIME_FINISH != timer_Status(TIMER_CLEARCALIB)
 					&& mbutton.set != _ON);
 			if (_ON == mbutton.set) {
-				app_GetCalibValue(MEASUREMENT_1);
+				app_GetCalibValue(MEASUREMENT_2);
 				if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
 						&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
 						&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
-					app_SetCalibValue(MEASUREMENT_1);
-					app_GetCalibValue(MEASUREMENT_1);
-					mledStatus.led1 = _ON; //TODO: led 2 for measurement2
-					msetCalibValue_1 = CALIBSET;
+					app_SetCalibValue(MEASUREMENT_2);
+					app_GetCalibValue(MEASUREMENT_2);
+					mledStatus.led2 = _ON;
+					msetCalibValue_2 = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
 					DBG("cycleMeasure = SET_DONE\n");
@@ -1607,9 +1788,7 @@ static void app_Measurement_1(void) {
 			}
 		}
 	}
-}
-static void app_Measurement_2(void) {
-//TODO
+
 }
 
 static void app_ClearAllOutput(void) {
@@ -1625,17 +1804,21 @@ static void app_ClearAllOutput(void) {
 }
 
 static void app_GetCurrentMeasureValue(uint8_t measurementIndex) {
-//	mCurrentMeasureValue = FLASH_ReadDataCurrent(measurementIndex); //TODO: change to backup register
-	if (mCurrentMeasureValue.X1 == EMPTY && mCurrentMeasureValue.X2 == EMPTY
-			&& mCurrentMeasureValue.Y1 == EMPTY
-			&& mCurrentMeasureValue.Y2 == EMPTY
-			&& mCurrentMeasureValue.Z == EMPTY) {
-		mCurrentMeasureValue.X1 = 0;
-		mCurrentMeasureValue.X2 = 0;
-		mCurrentMeasureValue.Y1 = 0;
-		mCurrentMeasureValue.Y2 = 0;
-		mCurrentMeasureValue.Z = 0;
-	}
+	uint32_t Addr;
+//    if(measurementIndex==MEASUREMENT_1)
+//    {
+//    	Addr = ;
+//    }
+//    else
+//    {
+//    	Addr = ;
+//    }
+
+    mCurrentMeasureValue.X1 = HAL_RTCEx_BKUPRead(&hrtc, Addr);
+    mCurrentMeasureValue.Y1 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 1);
+    mCurrentMeasureValue.X2 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 2);
+    mCurrentMeasureValue.Y2 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 3);
+    mCurrentMeasureValue.Z = HAL_RTCEx_BKUPRead(&hrtc, Addr + 4);
 }
 
 static void app_SetCurrentMeasureValue(uint8_t measurementIndex) {
@@ -1644,7 +1827,20 @@ static void app_SetCurrentMeasureValue(uint8_t measurementIndex) {
 	mCurrentMeasureValue.X2 = mmeasureValue.X2;
 	mCurrentMeasureValue.Y2 = mmeasureValue.Y2;
 	mCurrentMeasureValue.Z = mmeasureValue.Z;
-//	FLASH_WriteDataCurrent(&mCurrentMeasureValue, measurementIndex);//TODO: change to backup register
+    uint32_t Addr;
+//    if(measurementIndex==MEASUREMENT_1)
+//    {
+//    	Addr = ;
+//    }
+//    else
+//    {
+//    	Addr = ;
+//    }
+    HAL_RTCEx_BKUPWrite(&hrtc, Addr + 0, mCurrentMeasureValue.X1); // append vào 1 thanh ghi
+    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Y1);
+    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.X2);
+    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Y2);
+    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Z);
 }
 
 static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
@@ -1891,9 +2087,11 @@ static optionScreen_e_t app_optionMenu(void) {
 static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	switch (optionMenu) {
 	case measurement1Setting:
+
 		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 		break;
 	case measurement2Setting:
+
 		app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
 		break;
 	case measurement1HisList:
@@ -1927,6 +2125,7 @@ static void app_ShowIP(void) {
 			exit = 1;
 		}
 	} while (exit == 0);
+//	dataMeasure temp = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 
@@ -1934,7 +2133,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 	uint8_t index = 0;
 	uint8_t exit = 0;
 	dataMeasure ldata;
-	char fileName[16];
+	char fileName[17];
 //	uint8_t u8_Led3 = mledStatus.led3;
 	if(measurementIndex == MEASUREMENT_1)
 	{
@@ -1945,7 +2144,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
 	}
 	LCD_Clear();
-	ldata = read_SDCard(fileName, index);
+	read_SDCard(fileName, index, &ldata);
 	screen_DataMeasureType1(ldata, CALIBSET, measurementIndex, SHOW_HIS);
 	do {
 		mbutton = io_getButton();
@@ -1956,7 +2155,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 			if (index > 9)
 				index = 0;
 
-			ldata = read_SDCard(fileName, index);
+			read_SDCard(fileName, index, &ldata);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
 			SHOW_HIS);
 		}
@@ -1967,7 +2166,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 			if (index > 9)
 				index = 0;
 
-			ldata = read_SDCard(fileName, index);
+			read_SDCard(fileName, index, &ldata);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
 			SHOW_HIS);
 		}
@@ -2012,9 +2211,8 @@ static void app_HisValue(uint8_t measurementIndex) {
 			exit = 1;
 		}
 	} while (exit == 0);
-
-	if (exit)
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
+//	dataMeasure temp = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
 static void app_Init(void) {
@@ -2052,13 +2250,14 @@ static void app_Init(void) {
     }
 
 	io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 	uint8_t index = 0;
 	dataMeasure data;
 
-	data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
+	read_SDCard(MEASUREMENT_1_FILE_NAME, index, &data);
 	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
 	uint8_t exit = 0;
 
@@ -2129,8 +2328,21 @@ CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure) {
 	return cycleMeasure;
 }
 
-CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure) //TODO: using falling interrupt in2
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex) //TODO: using falling interrupt in2
 {
+	setCalibValue mcalibValue;
+	char fileName[17];
+
+	if(measurementIndex == MEASUREMENT_1)
+	{
+		mcalibValue = msetCalibValue_1;
+		strcpy(fileName, MEASUREMENT_1_FILE_NAME);
+	}
+	else
+	{
+		mcalibValue = msetCalibValue_2;
+		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
+	}
 	while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
 		minput = io_getInput();
 		if (_ON == minput.in2) //C=1
@@ -2154,17 +2366,17 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure) //TODO: using falling 
 			moutput.out1 = _ON;
 			io_setOutput(moutput, ucRegCoilsBuf);
 
-			app_GetCurrentMeasureValue(MEASUREMENT_1);
+			app_GetCurrentMeasureValue(measurementIndex);
 			mmeasureValue.Z = time_Stop(TIMER_Z);
 			mmeasureValue.X1 = mCurrentMeasureValue.X1;
 			mmeasureValue.Y1 = mCurrentMeasureValue.Y1;
 			mmeasureValue.X2 = mCurrentMeasureValue.X2;
 			mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
-			app_SetCurrentMeasureValue(MEASUREMENT_1);
+			app_SetCurrentMeasureValue(measurementIndex);
 			mdata.mode = ZONLY;
-			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-			write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
-			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
+			app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
+			write_SDCard(mdata, fileName);
+			screen_DataMeasureType1(mdata, mcalibValue, measurementIndex,
 							NOT_SHOW_HIS);
 
 			minput.in2 = _OFF;

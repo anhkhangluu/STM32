@@ -26,16 +26,6 @@ void rtc_SetDateTime(Time time) {
 //		_Error_Handler(__FILE__, __LINE__);
 		return;
 	}
-	HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0x32F2); // backup register
-
-
-	/* Using in main for check the RTC is still correct or not
-	   if(HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) != 0x32F2)
-      {
-      //   Set the time
-        set_time();
-      }
-	 * */
 }
 
 Time rtc_Now() {
