@@ -9,7 +9,7 @@
 #define EEP_START_ADDRESS           50U //(EEP_CURREN_VALUE_ADDRESS + sizeof(MeasureValue))
 #define EEP_MAX_DATA                10U
 
-#define LCD_LINE_SIZE               40U //16U
+#define LCD_LINE_SIZE               16U
 #define _ON                         1U
 #define _OFF                        0U
 

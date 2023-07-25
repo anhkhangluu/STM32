@@ -14,13 +14,13 @@ static screenData screenBuffer;
 
 void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measIndex, uint8_t showHisFlag) {
 	LCD_Clear();
-	if (CALIBSET == setCalib) {
-		if(!showHisFlag)
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+	if(!showHisFlag)
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+						measIndex);
+	else
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
 							measIndex);
-		else
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
-								measIndex);
+	if (CALIBSET == setCalib) {
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,	"20%02d-%02d-%02d% 02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode) {
@@ -53,14 +53,13 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "                ");
 			DBG("LCD - No data\n");
 		}
-	} else {
-		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, " ");
+	}
+	else
+	{
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=.... ");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=.... ");
-		DBG("LCD - Calib no set\n");
 	}
-
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
@@ -225,34 +224,35 @@ void screen_showIP(wiz_NetInfo *netInfo)
 void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
 	switch (cycle) {
 	case V_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=[%2.1f] D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=[%2.1f] D=%2.1f", VDRLZ.V, VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", VDRLZ.R, VDRLZ.Z);
 		break;
 	case D_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=[%2.1f]", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=[%2.1f]", VDRLZ.V, VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", VDRLZ.R, VDRLZ.Z);
 		break;
 	case L_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=[%2.1f]", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", VDRLZ.V, VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=[%2.1f]", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=%2.1f", VDRLZ.R, VDRLZ.Z);
 		break;
 	case R_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "[R=%2.1f] Z=%2.1f", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", VDRLZ.V, VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "[R=%2.1f] Z=%2.1f", VDRLZ.R, VDRLZ.Z);
 		break;
 	case Z_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", (double)VDRLZ.V, (double)VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", (double)VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=[%2.1f]", (double)VDRLZ.R, (double)VDRLZ.Z);
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE +1, "V=%2.1f D=%2.1f", VDRLZ.V, VDRLZ.D);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE +1, "L=%2.1f", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE +1, "R=%2.1f Z=[%2.1f]", VDRLZ.R, VDRLZ.Z);
 		break;
 	default:
 		break;
 	}
 	LCD_Clear();
+	LCD_Puts(0,0," ");
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 	LCD_Puts(0, 3, screenBuffer.line4);
