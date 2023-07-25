@@ -20,7 +20,7 @@
 #include "main.h"
 #include "fatfs.h"
 #include "usb_device.h"
-
+#include <inttypes.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "LCD.h"
@@ -973,7 +973,7 @@ static void write_SDCard(dataMeasure data, char *fileName) {
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
 	sprintf(buff,
-			"20%02u-%02u-%02u %02u:%02u,%ld,%ld,%ld,%ld,%ld,%ld,%u\n",
+			"20%02u-%02u-%02u %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
 			data.time.year, data.time.month, data.time.day, data.time.hour,
 			data.time.minute, data.coordinates.R, data.coordinates.X,
 			data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
@@ -1046,7 +1046,7 @@ static void read_SDCard(char *fileName, uint8_t lineIndex, dataMeasure *data) {
 static void read_SDCard(char *fileName, uint8_t lineIndex,dataMeasure *data) {
 	FATFS FatFs;
 	FIL fil;
-	char buff[101];
+	char buff[80];
 	unsigned int totalLines = 0;
 
 	if(f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
@@ -1064,18 +1064,53 @@ static void read_SDCard(char *fileName, uint8_t lineIndex,dataMeasure *data) {
     while(totalLines - lineIndex > 0)
     {
     	totalLines --;
-    	f_gets(buff, 101, &fil);
+    	f_gets(buff, sizeof(buff), &fil);
     }
     f_close(&fil);
     f_mount(NULL, "", 0);
-    uint8_t itemparse = sscanf(buff, "20%02hhu-%02hhu-%02hhu %02hhu:%02hhu,%d,%d,%d,%d,%d,%d,%hhu\n", &data->time.year, &data->time.month, &data->time.day, &data->time.hour,
-			&data->time.minute, &data->coordinates.R, &data->coordinates.X,
-			&data->coordinates.Y, &data->coordinates.Z, &data->coordinates.aX,
-			&data->coordinates.aY, &data->mode);
-    if(itemparse != 12)
-    {
+//    uint8_t itemparse = sscanf(buff, "20%hhi-%hhi-%hhi %hhi:%hhi,%hi,%hi,%hi,%hi,%hi,%hi,%hhi\n", &data->time.year, &data->time.month, &data->time.day, &data->time.hour,
+//			&data->time.minute, &data->coordinates.R, &data->coordinates.X,
+//			&data->coordinates.Y, &data->coordinates.Z, &data->coordinates.aX,
+//			&data->coordinates.aY, &data->mode);
+    char _buff[] = "2021 7 24 12:34,100,200,300,400,500,600,1";
+    char *token = strtok(_buff, ",");
+
+    uint8_t item = sscanf(token, "20%hhu %hhu %hhu %hhu:%hhu", &data->time.year, &data->time.month, &data->time.day, &data->time.hour,
+			&data->time.minute);
+    if(item == 1)
     	return;
-    }
+//    sscanf(token,"20%hhu", &data->time.year);
+//    token = strtok(NULL, "-");
+//
+//    sscanf(token,"%hhu", &data->time.month);
+//    token = strtok(NULL, "-");
+
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hd", &data->coordinates.R);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hd", &data->coordinates.X);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hd", &data->coordinates.Y);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hd", &data->coordinates.Z);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hd", &data->coordinates.aX);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hd", &data->coordinates.aY);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hhu", &data->mode);
+
+//    if(itemparse != 12)
+//    {
+//    	return;
+//    }
 }
 #endif
 
@@ -1814,11 +1849,11 @@ static void app_GetCurrentMeasureValue(uint8_t measurementIndex) {
 //    	Addr = ;
 //    }
 
-    mCurrentMeasureValue.X1 = HAL_RTCEx_BKUPRead(&hrtc, Addr);
-    mCurrentMeasureValue.Y1 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 1);
-    mCurrentMeasureValue.X2 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 2);
-    mCurrentMeasureValue.Y2 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 3);
-    mCurrentMeasureValue.Z = HAL_RTCEx_BKUPRead(&hrtc, Addr + 4);
+//    mCurrentMeasureValue.X1 = HAL_RTCEx_BKUPRead(&hrtc, Addr);
+//    mCurrentMeasureValue.Y1 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 1);
+//    mCurrentMeasureValue.X2 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 2);
+//    mCurrentMeasureValue.Y2 = HAL_RTCEx_BKUPRead(&hrtc, Addr + 3);
+//    mCurrentMeasureValue.Z = HAL_RTCEx_BKUPRead(&hrtc, Addr + 4);
 }
 
 static void app_SetCurrentMeasureValue(uint8_t measurementIndex) {
@@ -1836,11 +1871,11 @@ static void app_SetCurrentMeasureValue(uint8_t measurementIndex) {
 //    {
 //    	Addr = ;
 //    }
-    HAL_RTCEx_BKUPWrite(&hrtc, Addr + 0, mCurrentMeasureValue.X1); // append vào 1 thanh ghi
-    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Y1);
-    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.X2);
-    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Y2);
-    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Z);
+//    HAL_RTCEx_BKUPWrite(&hrtc, Addr + 0, mCurrentMeasureValue.X1); // append vào 1 thanh ghi
+//    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Y1);
+//    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.X2);
+//    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Y2);
+//    HAL_RTCEx_BKUPWrite(&hrtc, Addr , mCurrentMeasureValue.Z);
 }
 
 static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
