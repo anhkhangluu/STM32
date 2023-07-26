@@ -15,7 +15,7 @@ void rtc_SetDateTime(Time time) {
 	sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
 	sTime.StoreOperation = RTC_STOREOPERATION_RESET;
 	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
-//		_Error_Handler(__FILE__, __LINE__);
+		DBG("set time ERROR");
 		return;
 	}
 	sDate.WeekDay = RTC_WEEKDAY_MONDAY; //weekday - don't care
@@ -23,7 +23,7 @@ void rtc_SetDateTime(Time time) {
 	sDate.Date = time.day; // date
 	sDate.Year = time.year; // year
 	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
-//		_Error_Handler(__FILE__, __LINE__);
+		DBG("set date ERROR");
 		return;
 	}
 }

@@ -108,7 +108,6 @@ uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = { 0 };
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
-static Time mtime = { 24, 07, 12, 06, 00, 00 };
 uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
@@ -146,7 +145,7 @@ void Callback_IPConflict(void) {
 }
 
 static void write_SDCard(dataMeasure data, char *fileName);
-static void read_SDCard(char *fileName, uint8_t lineIndex, dataMeasure *data);
+static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex);
 
 static void W5500_init();
 
@@ -229,7 +228,6 @@ int main(void) {
 
 	app_Init();
 
-//	read_SDCard(MEASUREMENT_1_FILE_NAME, 0, &mdata);
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -239,7 +237,6 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-		mdata.time = rtc_Now();
 		minput = io_getInput();
 		mbutton = io_getButton();
 		uint32_t _time = 0;
@@ -273,6 +270,7 @@ int main(void) {
 				{
 					FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
 					mledStatus.led1= _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					msetCalibValue_1 = CALIBRESET;
 					app_GotoMainScreen(CALIBRESET, MEASUREMENT_1);
 				}
@@ -280,12 +278,11 @@ int main(void) {
 				{
 					FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
 					mledStatus.led2= _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					msetCalibValue_2 = CALIBRESET;
 					app_GotoMainScreen(CALIBRESET, MEASUREMENT_2);
 				}
-				app_GetCalibValue(MEASUREMENT_1);
-				app_GetCalibValue(MEASUREMENT_2);
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
 			}
 		}
 	}
@@ -976,7 +973,7 @@ static void write_SDCard(dataMeasure data, char *fileName) {
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
 	sprintf(buff,
-			"20%02u-%02u-%02u %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
+			"\'20%02u-%02u-%02u %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
 			data.time.year, data.time.month, data.time.day, data.time.hour,
 			data.time.minute, data.coordinates.R, data.coordinates.X,
 			data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
@@ -1047,17 +1044,18 @@ static void read_SDCard(char *fileName, uint8_t lineIndex, dataMeasure *data) {
 }
 #else
 
-static void read_SDCard(char *fileName, uint8_t lineIndex,dataMeasure *data) {
+static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
 	FATFS FatFs;
 	FIL fil;
 	char buff[80];
+	dataMeasure data = {0};
 	
 	unsigned int totalLines = 0;
 
 	if(f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
-		return;
+		return data;
 	if(f_open(&fil, fileName, FA_READ)!= FR_OK)
-		return;
+		return data;
 
 	// Count the total number of lines in the file
     while (f_gets(buff, 100, &fil) != FR_OK) {
@@ -1080,36 +1078,37 @@ static void read_SDCard(char *fileName, uint8_t lineIndex,dataMeasure *data) {
     unsigned short int  year,month,day,hour,minute;
 //    char _buff[] = "2021-7-24 12:34,100,200,300,400,500,600,1";
     char *token = strtok(buff, ",");
-    sscanf(token, "20%hu-%hu-%hu %hu:%hu", &year, &month, &day, &hour,
-			&minute);
+    sscanf(token, "\'20%hu-%hu-%hu %hu:%hu", &year, &month, &day, &hour,
+    			&minute);
 
-    data->time.day = day;
-    data->time.hour = hour;
-    data->time.minute = minute;
-    data->time.month = month;
-    data->time.year = year;
+    data.time.day = (uint8_t)day;
+    data.time.hour = (uint8_t)hour;
+    data.time.minute = (uint8_t)minute;
+    data.time.month = (uint8_t)month;
+    data.time.year = (uint8_t)year;
 
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hd", &data->coordinates.R);
+	sscanf(token, "%hd", &data.coordinates.R);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hd", &data->coordinates.X);
+	sscanf(token, "%hd", &data.coordinates.X);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hd", &data->coordinates.Y);
+	sscanf(token, "%hd", &data.coordinates.Y);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hd", &data->coordinates.Z);
+	sscanf(token, "%hd", &data.coordinates.Z);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hd", &data->coordinates.aX);
+	sscanf(token, "%hd", &data.coordinates.aX);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hd", &data->coordinates.aY);
+	sscanf(token, "%hd", &data.coordinates.aY);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hhu", &data->mode);
+	sscanf(token, "%hhu", &data.mode);
+	return data;
 }
 #endif
 
@@ -1131,27 +1130,25 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 static void app_SettingVDLRZ(void) {
 	VDRLZ_CycleSet cycle = V_set;
 	uint8_t exit = 0;
-	VDRLZ_Input buffer;
-	buffer = FLASH_ReadVDRLZ();
+	VDRLZ_Input buffer = FLASH_ReadVDRLZ();
 
-	LCD_Clear();
 	do {
 		if (cycle == V_set) {
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, V_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
 					buffer.V += 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, V_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
 					buffer.V -= 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, V_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1168,21 +1165,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == V_set);
 		}
 		if (cycle == D_set) {
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, D_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
 					buffer.D += 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, D_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
 					buffer.D -= 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, D_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1204,21 +1201,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == D_set);
 		}
 		if (cycle == R_set) {
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, R_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
 					buffer.R += 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, R_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
 					buffer.R -= 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, R_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1240,21 +1237,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == R_set);
 		}
 		if (cycle == L_set) {
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, L_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
 					buffer.L += 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, L_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
 					buffer.L -= 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, L_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1276,21 +1273,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == L_set);
 		}
 		if (cycle == Z_set) {
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, Z_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
 					buffer.Z += 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, Z_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
 					buffer.Z -= 0.1;
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, Z_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.prev) {
@@ -1314,24 +1311,20 @@ static void app_SettingVDLRZ(void) {
 static void app_SettingRtc(void) {
 	CycleTime cycle = SET_YEAR;
 	uint8_t exit = 0;
-	uint8_t tmp = 0;
+	volatile Time mtime = rtc_Now();
 	LCD_Clear();
 	do {
 		/*set year*/
 		if (SET_YEAR == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_YEAR);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					tmp = ((mtime.year >= 2000) ?
-							(mtime.year - 2000) : (uint8_t) mtime.year);
-					tmp += 1;
-					if (99 < tmp)
-						tmp = 0;
-					rtc_SetDateTime(mtime);
+					mtime.year++;
+					if (99 < mtime.year)
+						mtime.year = 0;
 					screen_setDateTime(mtime, SET_YEAR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1343,11 +1336,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					if (0 == tmp)
-						tmp = 99;
-					else
-						tmp--;
-					rtc_SetDateTime(mtime);
+					mtime.year--;
+					if (99 < mtime.year)
+						mtime.year = 99;
 					screen_setDateTime(mtime, SET_YEAR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1362,18 +1353,15 @@ static void app_SettingRtc(void) {
 		}
 		/*set month*/
 		if (SET_MONTH == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_MONTH);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-
-					mtime.month += 1;
+					mtime.month++;
 					if (12 < mtime.month)
 						mtime.month = 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MONTH);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1385,12 +1373,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-
-					if (1 == mtime.month)
+					mtime.month--;
+					if (12 < mtime.month)
 						mtime.month = 12;
-					else
-						mtime.month -= 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MONTH);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1409,17 +1394,15 @@ static void app_SettingRtc(void) {
 		}
 		/*set day*/
 		if (SET_DAY == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_DAY);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					mtime.day += 1;
+					mtime.day ++;
 					if (31 < mtime.day)
 						mtime.day = 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_DAY);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1431,10 +1414,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					mtime.day -= 1;
-					if (0 == mtime.day)
+					mtime.day--;
+					if (31 < mtime.day)
 						mtime.day = 31;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_DAY);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1453,7 +1435,6 @@ static void app_SettingRtc(void) {
 		}
 		/*set hour*/
 		if (SET_HOUR == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_HOUR);
 			do {
 				mbutton = io_getButton();
@@ -1463,7 +1444,7 @@ static void app_SettingRtc(void) {
 					mtime.hour += 1;
 					if (23 < mtime.hour)
 						mtime.hour = 0;
-					rtc_SetDateTime(mtime);
+
 					screen_setDateTime(mtime, SET_HOUR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1476,11 +1457,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					if (0 == mtime.hour)
+					mtime.hour--;
+					if (23 < mtime.hour)
 						mtime.hour = 23;
-					else
-						mtime.hour -= 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_HOUR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1499,18 +1478,16 @@ static void app_SettingRtc(void) {
 		}
 		/*set minute*/
 		if (SET_MINUTE == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_MINUTE);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					mtime.minute += 1;
+					mtime.minute++;
 					if (59 < mtime.minute)
 						mtime.minute = 1;
 					mtime.second = 0;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MINUTE);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1522,12 +1499,10 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					if (0 == mtime.minute)
+					mtime.minute--;
+					if (59 < mtime.minute)
 						mtime.minute = 59;
-					else
-						mtime.minute -= 1;
 					mtime.second = 0;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MINUTE);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1540,6 +1515,7 @@ static void app_SettingRtc(void) {
 			} while (SET_MINUTE == cycle);
 		}
 	} while (0 == exit);
+	rtc_SetDateTime(mtime);
 //	dataMeasure temp = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
@@ -1600,8 +1576,15 @@ static void app_Measurement_1(void) {
 		}
 		if (_time > 20000) //time press reset button longer than 2sec
 				{
-			mledStatus.led1 = _OFF;
-			mledStatus.led2 = _OFF;
+			if(msetCalibValue_1 == CALIBSET)
+				mledStatus.led1 = _ON;
+			else
+				mledStatus.led1 = _OFF;
+
+			if(msetCalibValue_2 == CALIBSET)
+				mledStatus.led2 = _ON;
+			else
+				mledStatus.led2 = _OFF;
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
 			moutput.out2 = _OFF;
@@ -1669,6 +1652,7 @@ static void app_Measurement_1(void) {
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					DBG("cycleMeasure = SET_DONE\n");
 					app_CalculatorValue(FINISH, mdata.mode, MEASUREMENT_1);
+					mainScreenFlag = MEASUREMENT_1;
 					screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1, NOT_SHOW_HIS);
 					//in man hinh 0
 				}
@@ -1736,8 +1720,15 @@ static void app_Measurement_2(void) {
 		}
 		if (_time > 20000) //time press reset button longer than 2sec
 				{
-			mledStatus.led1 = _OFF;
-			mledStatus.led2 = _OFF;
+			if (msetCalibValue_1 == CALIBSET)
+				mledStatus.led1 = _ON;
+			else
+				mledStatus.led1 = _OFF;
+
+			if (msetCalibValue_2 == CALIBSET)
+				mledStatus.led2 = _ON;
+			else
+				mledStatus.led2 = _OFF;
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
 			moutput.out2 = _OFF;
@@ -1766,7 +1757,7 @@ static void app_Measurement_2(void) {
 			if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_2)) {
 				write_SDCard(mdata, MEASUREMENT_2_FILE_NAME);
 			}
-			app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
+			screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2, NOT_SHOW_HIS);
 			while (_ON == io_getInput().in2 && (0 == GET_IN1))
 				;
 		}
@@ -1803,10 +1794,16 @@ static void app_Measurement_2(void) {
 					mledStatus.led2 = _ON;
 					msetCalibValue_2 = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-
 					DBG("cycleMeasure = SET_DONE\n");
+					app_CalculatorValue(FINISH, mdata.mode, MEASUREMENT_2);
+					mainScreenFlag = MEASUREMENT_2;
+					screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2, NOT_SHOW_HIS);
 				}
 			}
+		}
+		else
+		{
+			app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
 		}
 	}
 
@@ -1866,6 +1863,7 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 		app_GetCalibValue(MEASUREMENT_2);
 	}
 	if (CALIBSET == temp) {
+		mdata.time = rtc_Now();
 //        DBG("**********************************************************\n")
 		/*calculator Z*/
 		if ((ZONLY == mode) || (MEASUREALL == mode)) {
@@ -2117,7 +2115,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
 	}
 	LCD_Clear();
-	read_SDCard(fileName, index, &ldata);
+	ldata = read_SDCard(fileName, index);
 	screen_DataMeasureType1(ldata, CALIBSET, measurementIndex, SHOW_HIS);
 	do {
 		mbutton = io_getButton();
@@ -2128,7 +2126,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 			if (index > 9)
 				index = 0;
 
-			read_SDCard(fileName, index, &ldata);
+			ldata = read_SDCard(fileName, index);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
 			SHOW_HIS);
 		}
@@ -2137,9 +2135,9 @@ static void app_HisValue(uint8_t measurementIndex) {
 				;
 			index++;
 			if (index > 9)
-				index = 0;
+				index = 9;
 
-			read_SDCard(fileName, index, &ldata);
+			ldata = read_SDCard(fileName, index);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
 			SHOW_HIS);
 		}
@@ -2148,7 +2146,6 @@ static void app_HisValue(uint8_t measurementIndex) {
 				;
 			uint8_t tempExit = 0;
 			do {
-
 				mbutton = io_getButton();
 				if (mbutton.next == _ON) {
 					while (_ON == io_getButton().next)
@@ -2234,13 +2231,13 @@ static void app_Init(void) {
 }
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 	uint8_t index = 0;
-	dataMeasure data;
+	volatile dataMeasure data = {0};
+	uint8_t exit = 0;
 
 	mainScreenFlag = measurementIndex; //use for reset calib
 
-	read_SDCard(MEASUREMENT_1_FILE_NAME, index, &data);
+	data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
 	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
-	uint8_t exit = 0;
 
 	do {
 		mbutton = io_getButton();
