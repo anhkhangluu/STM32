@@ -69,14 +69,13 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 		uint8_t measIndex, uint8_t showHisFlag) {
 	LCD_Clear();
-	if (CALIBSET == setCalib) {
-		if(!showHisFlag)
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+	if(!showHisFlag)
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+						measIndex);
+	else
+		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
 							measIndex);
-		else
-			snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
-								measIndex);
-
+	if (CALIBSET == setCalib) {
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
 				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
@@ -99,7 +98,6 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 	}
 	else
 	{
-		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, " ");
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "A=....");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "B=....");
@@ -257,3 +255,4 @@ void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
 	LCD_Puts(0, 2, screenBuffer.line3);
 	LCD_Puts(0, 3, screenBuffer.line4);
 }
+

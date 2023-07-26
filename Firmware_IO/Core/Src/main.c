@@ -239,6 +239,7 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
+		mdata.time = rtc_Now();
 		minput = io_getInput();
 		mbutton = io_getButton();
 		uint32_t _time = 0;
@@ -1130,7 +1131,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 static void app_SettingVDLRZ(void) {
 	VDRLZ_CycleSet cycle = V_set;
 	uint8_t exit = 0;
-	volatile VDRLZ_Input buffer;
+	VDRLZ_Input buffer;
 	buffer = FLASH_ReadVDRLZ();
 
 	LCD_Clear();
@@ -1629,7 +1630,7 @@ static void app_Measurement_1(void) {
 			if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
 				write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
 			}
-			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1, NOT_SHOW_HIS); // using next and prev in main loop
+			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1, NOT_SHOW_HIS);
 			while (_ON == io_getInput().in2 && (0 == GET_IN0))
 				;
 		}
@@ -1667,10 +1668,15 @@ static void app_Measurement_1(void) {
 					msetCalibValue_1 = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					DBG("cycleMeasure = SET_DONE\n");
+					app_CalculatorValue(FINISH, mdata.mode, MEASUREMENT_1);
+					screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1, NOT_SHOW_HIS);
+					//in man hinh 0
 				}
 			}
 		}
-		app_GotoMainScreen(CALIBSET, MEASUREMENT_1);
+		else
+			app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
+
 	}
 }
 static void app_Measurement_2(void) {
@@ -2186,15 +2192,18 @@ static void app_Init(void) {
 	W5500_init(); //if this line error -> check power of ethernet
 	LCD_Clear();
 
-	mdata.time = rtc_Now();
-
 	VDRLZ_Input temp;
-	temp.V = 20.0;
-	temp.D = 50.0;
-	temp.R = 1.2;
-	temp.L = 15.0;
-	temp.Z = 1.2;
-	FLASH_WriteVDRLZ(&temp);
+	temp = FLASH_ReadVDRLZ();
+	if(isnanf(temp.D) && isnanf(temp.L) && isnanf(temp.R) && isnanf(temp.V) && isnanf(temp.Z))
+	{
+
+		temp.V = 20.0;
+		temp.D = 50.0;
+		temp.R = 1.2;
+		temp.L = 15.0;
+		temp.Z = 1.2;
+		FLASH_WriteVDRLZ(&temp);
+	}
 
 	app_GetCalibValue(MEASUREMENT_1);
 	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0)
@@ -2341,7 +2350,8 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 			mmeasureValue.Z = time_Stop(TIMER_Z);
 			mdata.mode = ZONLY;
 			app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
-			write_SDCard(mdata, fileName);
+			if(mcalibValue == CALIBSET)
+				write_SDCard(mdata, fileName);
 			screen_DataMeasureType1(mdata, mcalibValue, measurementIndex,
 							NOT_SHOW_HIS);
 

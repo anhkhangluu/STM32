@@ -9,10 +9,7 @@
 #include "string.h"
 
 #define TOTAL_BYTE	60
-#define MEMORY_ADDR		((uint32_t )0x0801F800)
-#define INDEX_DATA_CALIB_1	0U
-#define INDEX_DATA_CALIB_2  20U
-#define INDEX_VDRLZ			40U
+
 
 static void FLASH_ReadEntireMemory(uint16_t *ReadBuf);
 static void FLASH_Write(uint16_t *ReadBuf, uint32_t Addr);
@@ -127,4 +124,3 @@ VDRLZ_Input FLASH_ReadVDRLZ()
 //	memcpy(readStruct, (VDRLZ_Input*)(MEMORY_ADDR + INDEX_VDRLZ), sizeof(VDRLZ_Input));
 	return *(VDRLZ_Input*)(MEMORY_ADDR + INDEX_VDRLZ);
 }
-
