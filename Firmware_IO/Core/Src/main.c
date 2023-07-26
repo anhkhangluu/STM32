@@ -225,6 +225,46 @@ int main(void) {
 	HAL_TIM_Base_Start(&htim3);
 	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
 	HAL_PWR_EnableBkUpAccess();
+#if 0
+	dataMeasure _data,__data;
+	_data.coordinates.R = 100;
+	_data.coordinates.X = -100;
+	_data.coordinates.Y = -1000;
+	_data.coordinates.Z = -2000;
+	_data.coordinates.aX = 2000;
+	_data.coordinates.aY = 4000;
+	_data.time.day = 10;
+	_data.time.hour = 20;
+	_data.time.minute = 40;
+	_data.time.month = 9;
+	_data.time.year = 20;
+	_data.mode = 4;
+
+	write_SDCard(_data, MEASUREMENT_1_FILE_NAME);
+	__data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+	screen_DataMeasureType1(__data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
+	HAL_Delay(2000);
+	dataMeasure ___data,____data;
+	___data.coordinates.R = 100;
+	___data.coordinates.X = -56;
+	___data.coordinates.Y = -14;
+	___data.coordinates.Z = -2000;
+	___data.coordinates.aX = 2000;
+	___data.coordinates.aY = 1200;
+	___data.time.day = 10;
+	___data.time.hour = 21;
+	___data.time.minute = 40;
+	___data.time.month = 9;
+	___data.time.year = 30;
+	___data.mode = 4;
+
+	write_SDCard(___data, MEASUREMENT_1_FILE_NAME);
+	____data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+	screen_DataMeasureType1(____data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
+	while(1);
+#endif
+
+
 
 	app_Init();
 
