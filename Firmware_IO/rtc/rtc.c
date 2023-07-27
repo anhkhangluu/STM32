@@ -33,9 +33,9 @@ Time rtc_Now() {
 	RTC_DateTypeDef gDate;
 	RTC_TimeTypeDef gTime;
 	/* Get the RTC current Time */
-	HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN);
+	HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BCD);
 	/* Get the RTC current Date */
-	HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BCD);
 	time.day = gDate.Date;
 	time.month = gDate.Month;
 	time.year = gDate.Year;

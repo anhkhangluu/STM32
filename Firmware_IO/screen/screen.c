@@ -10,9 +10,18 @@
 #include "stdlib.h"
 #include "main.h" ///use for cdc debug
 
+#define SHOW_AB_FLAG		1
+#define NOT_SHOW_AB_FLAG	0
+
+static dataMeasure capData(dataMeasure input, uint8_t isShowAB);
+static uint16_t hundredsDigit(uint16_t input);
+static uint16_t tensDigit(uint16_t input);
+static uint16_t onesDigit(uint16_t input);
+
 void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 		uint8_t measIndex, uint8_t showHisFlag) {
 	LCD_Clear();
+
 	static screenData screenBuffer;
 	if (!showHisFlag)
 		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
@@ -21,55 +30,44 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
 				measIndex);
 	if (CALIBSET == setCalib) {
+		data = capData(data, NOT_SHOW_AB_FLAG);
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
 				"20%02d-%02d-%02d% 02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode) {
-			data.coordinates.X =
-					(data.coordinates.X < -999) ? -999 :
-					(data.coordinates.X > 999) ? 999 : data.coordinates.X;
-			data.coordinates.Y =
-					(data.coordinates.Y < -999) ? -999 :
-					(data.coordinates.Y > 999) ? 999 : data.coordinates.Y;
-			data.coordinates.Z =
-					(data.coordinates.Z < -999) ? -999 :
-					(data.coordinates.Z > 999) ? 999 : data.coordinates.Z;
-			data.coordinates.R =
-					(data.coordinates.R < -999) ? -999 :
-					(data.coordinates.R > 999) ? 999 : data.coordinates.R;
+
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
-					"X=%+-#1.2f Y=%+-#1.2f", (float) data.coordinates.X / 100,
-					(float) data.coordinates.Y / 100);
+					"X=%s%1d.%02d Y=%s%1d.%02d",
+					(data.coordinates.X >= 0) ? "+" : "-",
+					data.coordinates.X / 100, data.coordinates.X % 100,
+					(data.coordinates.Y >= 0) ? "+" : "-",
+					data.coordinates.Y / 100, data.coordinates.Y % 100);
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-					"Z=%+-#1.2f R=%+-#1.2f", (float) data.coordinates.Z / 100,
-					(float) data.coordinates.R / 100);
+					"Z=%s%1d.%2d R=%s%1d.%2d",
+					(data.coordinates.Z >= 0) ? "+" : "-",
+					data.coordinates.Z / 100, data.coordinates.Z % 100,
+					(data.coordinates.R >= 0) ? "+" : "-",
+					data.coordinates.R / 100, data.coordinates.R % 100);
 		} else if (ZERROR1 == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=....");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=....");
 			DBG("LCD - ZERROR1\n");
 		} else if (ZERROR2 == data.mode) {
-			data.coordinates.X =
-					(data.coordinates.X < -999) ? -999 :
-					(data.coordinates.X > 999) ? 999 : data.coordinates.X;
-			data.coordinates.Y =
-					(data.coordinates.Y < -999) ? -999 :
-					(data.coordinates.Y > 999) ? 999 : data.coordinates.Y;
-			data.coordinates.R =
-					(data.coordinates.R < -999) ? -999 :
-					(data.coordinates.R > 999) ? 999 : data.coordinates.R;
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
-					"X=%+-#1.2f Y=%+-#1.2f", (float) data.coordinates.X / 100,
-					(float) data.coordinates.Y / 100);
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=.... R=%+-#1.2f",
-					(float) data.coordinates.R / 100);
+					"X=%s%1d.%2d Y=%s%1d.%2d",
+					(data.coordinates.X >= 0) ? "+" : "-",
+					data.coordinates.X / 100, data.coordinates.X % 100,
+					(data.coordinates.Y >= 0) ? "+" : "-",
+					data.coordinates.Y / 100, data.coordinates.Y % 100);
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
+					"Z=.... R=%s%1d.%2d", (data.coordinates.R >= 0) ? "+" : "-",
+					data.coordinates.R / 100, data.coordinates.R % 100);
 			DBG("LCD - ZERROR2\n");
 		} else if (ZONLY == data.mode) {
-			data.coordinates.Z =
-					(data.coordinates.Z < -999) ? -999 :
-					(data.coordinates.Z > 999) ? 999 : data.coordinates.Z;
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=....");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-					"Z=%+-#1.2f R=....", (float) data.coordinates.Z / 100);
+					"Z=%s%1d.%2d R=....", (data.coordinates.Z >= 0) ? "+" : "-",
+					data.coordinates.Z / 100, data.coordinates.Z % 100);
 			DBG("LCD - ZONLY\n");
 		} else {
 			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "              ");
@@ -100,21 +98,18 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEAS.%01d HISTORY",
 				measIndex);
 	if (CALIBSET == setCalib) {
+
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
 				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode || data.mode == ZERROR2) {
-			data.coordinates.aX =
-					(data.coordinates.aX < -999) ? -999 :
-					(data.coordinates.aX > 999) ? 999 : data.coordinates.X;
-			data.coordinates.aY =
-					(data.coordinates.aY < -999) ? -999 :
-					(data.coordinates.aY > 999) ? 999 : data.coordinates.Y;
-
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   A=%+-#2.1f",
-					(float) data.coordinates.aX / 10);
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "   B=%+-#2.1f",
-					(float) data.coordinates.aY / 10);
+			data = capData(data, SHOW_AB_FLAG);
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   A=%s%2d.%1d",
+					(data.coordinates.aX >= 0) ? "+" : "-",
+					data.coordinates.aX / 10, data.coordinates.aX % 10);
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "   B=%s%2d.%1d",
+					(data.coordinates.aY >= 0) ? "+" : "-",
+					data.coordinates.aY / 10, data.coordinates.aY % 10);
 			screenBuffer.line3[10] = 0xDF;
 			screenBuffer.line4[10] = 0xDF;
 		} else if (ZERROR1 == data.mode || data.mode == ZONLY) {
@@ -155,31 +150,31 @@ void screen_setDateTime(Time time, CycleTime cycle) {
 	static screenData screenBuffer;
 	switch (cycle) {
 	case SET_YEAR:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "[20%02d]-%02d-%02d",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "  [20%02d]-%02d-%02d",
 				time.year, time.month, time.day);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d:%02d",
 				time.hour, time.minute);
 		break;
 	case SET_MONTH:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d-[%02d]-%02d",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "  20%02d-[%02d]-%02d",
 				time.year, time.month, time.day);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d:%02d",
 				time.hour, time.minute);
 		break;
 	case SET_DAY:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d-%02d-[%02d]",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "  20%02d-%02d-[%02d]",
 				time.year, time.month, time.day);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d:%02d",
 				time.hour, time.minute);
 		break;
 	case SET_HOUR:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d-%02d-%02d",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "  20%02d-%02d-%02d",
 				time.year, time.month, time.day);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    [%02d]:%02d",
 				time.hour, time.minute);
 		break;
 	case SET_MINUTE:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d-%02d-%02d",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "  20%02d-%02d-%02d",
 				time.year, time.month, time.day);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d:[%02d]",
 				time.hour, time.minute);
@@ -261,41 +256,46 @@ void screen_showIP(wiz_NetInfo *netInfo) {
 
 void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
 	static screenData screenBuffer;
+	uint32_t R = (uint32_t)VDRLZ.R * 10;
+	uint32_t Z = (uint32_t)VDRLZ.Z * 10;
+
 	switch (cycle) {
 	case V_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=[%2.1f] D=%2.1f",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=[%02lu]  D=%02lu",
 				VDRLZ.V, VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%2.1f", VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "R=%2.1f Z=%2.1f",
-				VDRLZ.R, VDRLZ.Z);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%02lu", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
+				"R=%01lu.%01lu  Z=%01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
 		break;
 	case D_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%2.1f D=[%2.1f]",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%02lu  D=[%02lu]",
 				VDRLZ.V, VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%2.1f", VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "R=%2.1f Z=%2.1f",
-				VDRLZ.R, VDRLZ.Z);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%02lu", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
+				"R=%01lu.%01lu  Z=%01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
 		break;
 	case L_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%2.1f D=%2.1f",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%02lu  D=%02lu",
 				VDRLZ.V, VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=[%2.1f]", VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "R=%2.1f Z=%2.1f",
-				VDRLZ.R, VDRLZ.Z);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=[%02lu]", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
+				"R=%01lu.%01lu  Z=%01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
 		break;
 	case R_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%2.1f D=%2.1f",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%02lu  D=%02lu",
 				VDRLZ.V, VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%2.1f", VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "R=[%2.1f] Z=%2.1f",
-				VDRLZ.R, VDRLZ.Z);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%02lu", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
+				"R=[%01lu.%01lu]  Z=%01lu.%01lu", R / 10, R % 10, Z / 10,
+				Z % 10);
 		break;
 	case Z_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%2.1f D=%2.1f",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=%02lu  D=%02lu",
 				VDRLZ.V, VDRLZ.D);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%2.1f", VDRLZ.L);
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "R=%2.1f Z=[%2.1f]",
-				VDRLZ.R, VDRLZ.Z);
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=%02lu", VDRLZ.L);
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
+				"R=%01lu.%01lu  Z=[%01lu.%01lu]", R / 10, R % 10, Z / 10,
+				Z % 10);
 		break;
 	default:
 		break;
@@ -305,5 +305,32 @@ void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 	LCD_Puts(0, 3, screenBuffer.line4);
+}
+
+static dataMeasure capData(dataMeasure input, uint8_t isShowAB) {
+	if (!isShowAB) {
+		input.coordinates.X =
+				(input.coordinates.X < -999) ? -999 :
+				(input.coordinates.X > 999) ? 999 : input.coordinates.X;
+		input.coordinates.Y =
+				(input.coordinates.Y < -999) ? -999 :
+				(input.coordinates.Y > 999) ? 999 : input.coordinates.Y;
+		input.coordinates.Z =
+				(input.coordinates.Z < -999) ? -999 :
+				(input.coordinates.Z > 999) ? 999 : input.coordinates.Z;
+		input.coordinates.R =
+				(input.coordinates.R < -999) ? -999 :
+				(input.coordinates.R > 999) ? 999 : input.coordinates.R;
+	}
+	else
+	{
+		input.coordinates.aX =
+				(input.coordinates.aX < -999) ? -999 :
+				(input.coordinates.aX > 999) ? 999 : input.coordinates.aX;
+		input.coordinates.aY =
+				(input.coordinates.aY < -999) ? -999 :
+				(input.coordinates.aY > 999) ? 999 : input.coordinates.aY;
+	}
+	return input;
 }
 

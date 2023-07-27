@@ -194,6 +194,7 @@ int main(void) {
 	/* MCU Configuration--------------------------------------------------------*/
 
 	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+
 	HAL_Init();
 
 	/* USER CODE BEGIN Init */
@@ -263,8 +264,6 @@ int main(void) {
 	screen_DataMeasureType1(____data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
 	while(1);
 #endif
-
-
 
 	app_Init();
 
@@ -1118,7 +1117,7 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
     unsigned short int  year,month,day,hour,minute;
 //    char _buff[] = "2021-7-24 12:34,100,200,300,400,500,600,1";
     char *token = strtok(buff, ",");
-    sscanf(token, "\'20%hu-%hu-%hu %hu:%hu", &year, &month, &day, &hour,
+    sscanf(token, "'20%hu-%hu-%hu %hu:%hu", &year, &month, &day, &hour,
     			&minute);
 
     data.time.day = (uint8_t)day;
@@ -1180,14 +1179,14 @@ static void app_SettingVDLRZ(void) {
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					buffer.V += 0.1;
+					buffer.V += 1;
 					screen_setVDRLZ(buffer, V_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.V -= 0.1;
+					buffer.V -= 1;
 					screen_setVDRLZ(buffer, V_set);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1211,14 +1210,14 @@ static void app_SettingVDLRZ(void) {
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					buffer.D += 0.1;
+					buffer.D += 1;
 					screen_setVDRLZ(buffer, D_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.D -= 0.1;
+					buffer.D -= 1;
 					screen_setVDRLZ(buffer, D_set);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1283,14 +1282,14 @@ static void app_SettingVDLRZ(void) {
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					buffer.L += 0.1;
+					buffer.L += 1;
 					screen_setVDRLZ(buffer, L_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.L -= 0.1;
+					buffer.L -= 1;
 					screen_setVDRLZ(buffer, L_set);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1326,7 +1325,7 @@ static void app_SettingVDLRZ(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.Z -= 0.1;
+					buffer.Z -=0.1;
 					screen_setVDRLZ(buffer, Z_set);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1351,7 +1350,7 @@ static void app_SettingVDLRZ(void) {
 static void app_SettingRtc(void) {
 	CycleTime cycle = SET_YEAR;
 	uint8_t exit = 0;
-	volatile Time mtime = rtc_Now();
+	Time mtime = rtc_Now();
 	LCD_Clear();
 	do {
 		/*set year*/
@@ -2231,13 +2230,12 @@ static void app_Init(void) {
 
 	VDRLZ_Input temp;
 	temp = FLASH_ReadVDRLZ();
-	if(isnanf(temp.D) && isnanf(temp.L) && isnanf(temp.R) && isnanf(temp.V) && isnanf(temp.Z))
+	if(temp.D == 0xFFFFFFFF && temp.L == 0xFFFFFFFF && isnanf(temp.R) && temp.V == 0xFFFFFFFF && isnanf(temp.Z))
 	{
-
-		temp.V = 20.0;
-		temp.D = 50.0;
+		temp.V = 20;
+		temp.D = 50;
 		temp.R = 1.2;
-		temp.L = 15.0;
+		temp.L = 15;
 		temp.Z = 1.2;
 		FLASH_WriteVDRLZ(&temp);
 	}

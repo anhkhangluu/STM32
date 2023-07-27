@@ -167,10 +167,10 @@ typedef struct _timer
 
 typedef struct _VDRLZ_Input
 {
-	float V;
-	float D;
+	uint32_t V;
+	uint32_t D;
 	float R;
-	float L;
+	uint32_t L;
 	float Z;
 }VDRLZ_Input;
 

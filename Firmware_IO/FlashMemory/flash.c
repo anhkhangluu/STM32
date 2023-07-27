@@ -46,7 +46,7 @@ static void updateVDRLZ(uint16_t *ReadBuf, VDRLZ_Input *data) {
 	uint16_t *temp;
 	temp = (uint16_t*) data;
 
-	for (uint8_t i = 0; i < sizeof(MeasureValue) / 2; i++) {
+	for (uint8_t i = 0; i < sizeof(VDRLZ_Input) / 2; i++) {
 		ReadBuf[INDEX_VDRLZ/2 + i] = temp[i];
 	}
 }
