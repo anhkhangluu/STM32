@@ -46,14 +46,13 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-#define CDC_DEBUG
+//#define CDC_DEBUG
 #ifdef CDC_DEBUG
 #define DBG(x) CDC_Transmit_FS(x,sizeof(x))
 #else
 #define DBG(x)
 #endif //CDC_DEBUG
 /* USER CODE END EM */
-
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
@@ -148,6 +147,12 @@ extern SPI_HandleTypeDef 	hspi2;
 
 extern RTC_HandleTypeDef 	hrtc;
 extern TIM_HandleTypeDef 	htim6;
+
+#include "structer.h"
+extern MeasureValue mcalibValue;
+void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,uint8_t measurementIndex);
+extern MeasureValue mmeasureValue;
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

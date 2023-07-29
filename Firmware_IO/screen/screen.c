@@ -14,15 +14,13 @@
 #define NOT_SHOW_AB_FLAG	0
 
 static dataMeasure capData(dataMeasure input, uint8_t isShowAB);
-static uint16_t hundredsDigit(uint16_t input);
-static uint16_t tensDigit(uint16_t input);
-static uint16_t onesDigit(uint16_t input);
+
 
 void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 		uint8_t measIndex, uint8_t showHisFlag) {
 	LCD_Clear();
+	screenData screenBuffer;
 
-	static screenData screenBuffer;
 	if (!showHisFlag)
 		snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
 				measIndex);
@@ -37,37 +35,37 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 		if (MEASUREALL == data.mode) {
 
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
-					"X=%s%1d.%02d Y=%s%1d.%02d",
-					(data.coordinates.X >= 0) ? "+" : "-",
-					data.coordinates.X / 100, data.coordinates.X % 100,
-					(data.coordinates.Y >= 0) ? "+" : "-",
-					data.coordinates.Y / 100, data.coordinates.Y % 100);
+					"X=%s%01d.%02d  Y=%s%01d.%02d",
+					(data.coordinates.X >= 0) ? "+" : "",
+					data.coordinates.X / 100, abs(data.coordinates.X) % 100,
+					(data.coordinates.Y >= 0) ? "+" : "",
+					data.coordinates.Y / 100, abs(data.coordinates.Y) % 100);
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-					"Z=%s%1d.%2d R=%s%1d.%2d",
-					(data.coordinates.Z >= 0) ? "+" : "-",
-					data.coordinates.Z / 100, data.coordinates.Z % 100,
-					(data.coordinates.R >= 0) ? "+" : "-",
-					data.coordinates.R / 100, data.coordinates.R % 100);
+					"Z=%s%01d.%02d  R=%s%01d.%02d",
+					(data.coordinates.Z >= 0) ? "+" : "",
+					data.coordinates.Z / 100, abs(data.coordinates.Z) % 100,
+					(data.coordinates.R >= 0) ? "+" : "",
+					data.coordinates.R / 100, abs(data.coordinates.R) % 100);
 		} else if (ZERROR1 == data.mode) {
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=....");
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=....");
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=.....  Y=.....");
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=.....  R=.....");
 			DBG("LCD - ZERROR1\n");
 		} else if (ZERROR2 == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
-					"X=%s%1d.%2d Y=%s%1d.%2d",
-					(data.coordinates.X >= 0) ? "+" : "-",
-					data.coordinates.X / 100, data.coordinates.X % 100,
-					(data.coordinates.Y >= 0) ? "+" : "-",
-					data.coordinates.Y / 100, data.coordinates.Y % 100);
+					"X=%s%01d.%02d  Y=%s%01d.%02d",
+					(data.coordinates.X >= 0) ? "+" : "",
+					data.coordinates.X / 100, abs(data.coordinates.X) % 100,
+					(data.coordinates.Y >= 0) ? "+" : "",
+					data.coordinates.Y / 100, abs(data.coordinates.Y) % 100);
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-					"Z=.... R=%s%1d.%2d", (data.coordinates.R >= 0) ? "+" : "-",
-					data.coordinates.R / 100, data.coordinates.R % 100);
+					"Z=.....  R=%s%01d.%02d", (data.coordinates.R >= 0) ? "+" : "",
+					data.coordinates.R / 100, abs(data.coordinates.R) % 100);
 			DBG("LCD - ZERROR2\n");
 		} else if (ZONLY == data.mode) {
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=....");
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=.....  Y=.....");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-					"Z=%s%1d.%2d R=....", (data.coordinates.Z >= 0) ? "+" : "-",
-					data.coordinates.Z / 100, data.coordinates.Z % 100);
+					"Z=%s%01d.%02d  R=.....", (data.coordinates.Z >= 0) ? "+" : "",
+					data.coordinates.Z / 100, abs(data.coordinates.Z) % 100);
 			DBG("LCD - ZONLY\n");
 		} else {
 			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "              ");
@@ -77,8 +75,8 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 		}
 	} else {
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=....   Y=....");
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=....   R=....");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=.....  Y=.....");
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=.....  R=.....");
 	}
 
 	LCD_Puts(0, 0, screenBuffer.line1);
@@ -104,18 +102,18 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode || data.mode == ZERROR2) {
 			data = capData(data, SHOW_AB_FLAG);
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   A=%s%2d.%1d",
-					(data.coordinates.aX >= 0) ? "+" : "-",
-					data.coordinates.aX / 10, data.coordinates.aX % 10);
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "   B=%s%2d.%1d",
-					(data.coordinates.aY >= 0) ? "+" : "-",
-					data.coordinates.aY / 10, data.coordinates.aY % 10);
-			screenBuffer.line3[10] = 0xDF;
-			screenBuffer.line4[10] = 0xDF;
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   A=%s%02d.%01d",
+					(data.coordinates.aX >= 0) ? "+" : "",
+					data.coordinates.aX / 10, abs(data.coordinates.aX) % 10);
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "   B=%s%02d.%01d",
+					(data.coordinates.aY >= 0) ? "+" : "",
+					data.coordinates.aY / 10, abs(data.coordinates.aY) % 10);
+			screenBuffer.line3[11] = 0xDF;
+			screenBuffer.line4[11] = 0xDF;
 		} else if (ZERROR1 == data.mode || data.mode == ZONLY) {
 
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    A=....");
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "    B=....");
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    A=.....");
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "    B=.....");
 		} else {
 			snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "                ");
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   No Data...!  ");
@@ -123,8 +121,8 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 		}
 	} else {
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "....-..-.. ..:..");
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    A=....");
-		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "    B=....");
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    A=.....");
+		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "    B=.....");
 	}
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
@@ -133,7 +131,7 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 }
 
 void screen_Time(Time time) {
-	static screenData screenBuffer;
+	screenData screenBuffer;
 	snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "  20%02d-%02d-%02d",
 			time.year, time.month, time.day);
 	snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d:%02d", time.hour,
@@ -147,7 +145,7 @@ void screen_Time(Time time) {
 
 void screen_setDateTime(Time time, CycleTime cycle) {
 	LCD_Clear();
-	static screenData screenBuffer;
+	screenData screenBuffer;
 	switch (cycle) {
 	case SET_YEAR:
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "  [20%02d]-%02d-%02d",
@@ -187,7 +185,7 @@ void screen_setDateTime(Time time, CycleTime cycle) {
 }
 
 void screen_OptionMenu(optionScreen_e_t *optionIndex) {
-	static screenData screenBuffer;
+	screenData screenBuffer;
 	if (*optionIndex == measurement1HisList
 			|| *optionIndex == measurement2HisList)
 		;
@@ -243,7 +241,7 @@ void screen_OptionMenu(optionScreen_e_t *optionIndex) {
 }
 
 void screen_showIP(wiz_NetInfo *netInfo) {
-	static screenData screenBuffer;
+	screenData screenBuffer;
 	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "IP ADDRESS");
 	snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "%03d.%03d.%02d.%02d",
 			netInfo->ip[0], netInfo->ip[1], netInfo->ip[2], netInfo->ip[3]);
@@ -255,9 +253,9 @@ void screen_showIP(wiz_NetInfo *netInfo) {
 }
 
 void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
-	static screenData screenBuffer;
-	uint32_t R = (uint32_t)VDRLZ.R * 10;
-	uint32_t Z = (uint32_t)VDRLZ.Z * 10;
+	screenData screenBuffer;
+	uint32_t R = VDRLZ.R * 10;
+	uint32_t Z = VDRLZ.Z * 10;
 
 	switch (cycle) {
 	case V_set:

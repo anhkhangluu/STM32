@@ -101,9 +101,9 @@ uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = {0};
 /*---------------------------------------------------*/
 
 /*----------------app.c----------------*/
-static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
+static dataMeasure mdata = {0};
 
-static Time mtime = { 23, 07, 18, 17, 00, 00 };
+static Time mtime = {0};
 uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
@@ -218,6 +218,11 @@ int main(void)
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1); //input capture SEN X
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2); //input capture SEN Y
 
+
+#if 1
+	process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+	while(1);
+#endif
 	app_Init();
   /* USER CODE END 2 */
 
