@@ -1608,8 +1608,8 @@ static void app_Measurement_1(void) {
 	}
 
 	while (CALCULATORVALUE == cycleMeasure && (0 == GET_IN0)) {
-		minput = io_getInput();
-		if (_ON == minput.in2)  //C = 5
+//		minput = io_getInput();
+		if (0 == GET_IN2)  //C = 5
 				{
 			minput.in2 = _OFF;
 			cycleMeasure = FINISH;
@@ -1626,7 +1626,7 @@ static void app_Measurement_1(void) {
 				write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
 			}
 			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1, NOT_SHOW_HIS);
-			while (_ON == io_getInput().in2 && (0 == GET_IN0))
+			while (0 == GET_IN2 && (0 == GET_IN0))
 				;
 		}
 	}
@@ -2329,7 +2329,7 @@ CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementInde
 	return cycleMeasure;
 }
 
-CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex) //TODO: using falling interrupt in2
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex)
 {
 	setCalibValue mcalibValue;
 	char fileName[17];
@@ -2345,24 +2345,20 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
 	}
 	while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
-		minput = io_getInput();
-		if (_ON == minput.in2) //C=1
+		if(0 == GET_IN2)//if (_ON == minput.in2) //C=1
 				{
 			timer_Start(TIMER_Z, TIMERMAXVALUE); //start timer to measure Z
-			msensor.s0 = _OFF;
-			msensor.s1 = _OFF;
+//			msensor.s0 = _OFF;
+//			msensor.s1 = _OFF;
 			cycleMeasure = MEASUREZ;
 			DBG("Measure Z start\r\n");
-			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 				;
 		}
-		minput.in2 = _OFF;
 	};
 	while ((MEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
-		msensor = io_getSensor();
-		minput = io_getInput();
-
-		if ((_ON == minput.in2) && (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
+//		msensor = io_getSensor();
+		if ((0 == GET_IN2) && (0 == GET_SENSOR0) && (0 == GET_SENSOR1))//if ((_ON == minput.in2) && (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
 				{
 			moutput.out1 = _ON;
 			io_setOutput(moutput, ucRegCoilsBuf);
@@ -2373,14 +2369,13 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 							NOT_SHOW_HIS);
 
 			minput.in2 = _OFF;
-			msensor.s0 = _OFF;
-			msensor.s1 = _OFF;
+//			msensor.s0 = _OFF;
+//			msensor.s1 = _OFF;
 			cycleMeasure = Z_OK;
 			DBG("(C=2) Measure Z - OK\r\n");
-			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 				;
-		} else if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2)
-				&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
+		}else if ((MEASUREZ == cycleMeasure) && (0 == GET_IN2) && ((1 == GET_SENSOR0) || (1 == GET_SENSOR1))) //else if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2) && ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
 				{
 			minput.in2 = _OFF;
 			moutput.out1 = _OFF;
@@ -2389,12 +2384,12 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 			cycleMeasure = Z_NOT_OK;
 			mdata.mode = ZERROR1;
 			DBG("(C=2) Measure Z - [NOT] OK\r\n");
-			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 				;
 		}
 
-		if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure))
-				&& (_OFF == minput.in2)) {
+		if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (1 == GET_IN2))//if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (_OFF == minput.in2))
+			{
 			cycleMeasure = WAITMEASUREX1Y1;
 			DBG("(C=2 cycleMeasure = WAITMEASUREX1Y1\r\n");
 
@@ -2407,8 +2402,7 @@ CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurement
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
 	while ((WAITMEASUREX1Y1 == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
-		minput = io_getInput();
-		if (_ON == minput.in2) //C=3
+		if (0 == GET_IN2) //C=3
 				{
 			minput.in2 = _OFF;
 			cycleMeasure = MEASUREX1Y1;
@@ -2419,24 +2413,24 @@ CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurement
 			cycleMeasureY = SEN_START;
 
 			DBG("Start counter X1, Y1\n");
-			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 				;
 		}
 	}
 
 	while (cycleMeasure == MEASUREX1Y1 && (0 == GET_INPUT(measurementIndex))) {
-		msensor = io_getSensor();
-		if (SEN_START == cycleMeasureX && (_ON == msensor.s0)) {
+//		msensor = io_getSensor();
+		if (SEN_START == cycleMeasureX && (0 == GET_SENSOR0)) {
 			mmeasureValue.X1 = time_Stop(TIMER_X); //Stop counter X
-			msensor.s0 = _OFF;
+//			msensor.s0 = _OFF;
 			cycleMeasureX = SEN_FINISH;
 			DBG("X1 = SEN_FINISH\n");
 			while (io_getSensor().s0 == _ON && (0 == GET_INPUT(measurementIndex)))
 				;
 		}
-		if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
+		if ((SEN_START == cycleMeasureY) && (0 == GET_SENSOR1)) {
 			mmeasureValue.Y1 = time_Stop(TIMER_Y); //Stop counter Y
-			msensor.s1 = _OFF;
+//			msensor.s1 = _OFF;
 			cycleMeasureY = SEN_FINISH;
 			DBG("Y1 = SEN_FINISH\n");
 			while (io_getSensor().s1 == _ON && (0 == GET_INPUT(measurementIndex)))
@@ -2446,7 +2440,8 @@ CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurement
 			cycleMeasure = WAITMEASUREX2Y2;
 			DBG("cycleMeasure = WAITMEASUREX2Y2\n");
 		}
-		if (io_getInput().in2 == _ON && cycleMeasure != WAITMEASUREX2Y2) {
+		if (0 == GET_IN2 && cycleMeasure != WAITMEASUREX2Y2) 	//if (io_getInput().in2 == _ON && cycleMeasure != WAITMEASUREX2Y2)
+		{
 			cycleMeasure = _ERROR_XY;
 		}
 	}
@@ -2457,8 +2452,7 @@ CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurement
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
 	while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
-		minput = io_getInput();
-		if (_ON == minput.in2) //C=4
+		if(0 == GET_IN2)//if (_ON == minput.in2) //C=4
 				{
 			minput.in2 = _OFF;
 			cycleMeasure = MEASUREX2Y2;
@@ -2470,25 +2464,25 @@ CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurement
 
 			DBG("Start counter X2, Y2\n");
 
-			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 				;
 		}
 	}
 
 	while (cycleMeasure == MEASUREX2Y2 && (0 == GET_INPUT(measurementIndex))) {
-		msensor = io_getSensor();
-		if (SEN_START == cycleMeasureX && (_ON == msensor.s0)) {
+//		msensor = io_getSensor();
+		if (SEN_START == cycleMeasureX && (0 == GET_SENSOR0)) {
 			mmeasureValue.X2 = time_Stop(TIMER_X); //Stop counter X
-			msensor.s0 = _OFF;
+//			msensor.s0 = _OFF;
 			cycleMeasureX = SEN_FINISH;
 			DBG("X2 = SEN_FINISH\n");
 
 			while (io_getSensor().s0 == _ON && (0 == GET_INPUT(measurementIndex)))
 				;
 		}
-		if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
+		if ((SEN_START == cycleMeasureY) && (0 == GET_SENSOR1)) {
 			mmeasureValue.Y2 = time_Stop(TIMER_Y); //Stop counter Y
-			msensor.s1 = _OFF;
+//			msensor.s1 = _OFF;
 			cycleMeasureY = SEN_FINISH;
 			DBG("Y2 = SEN_FINISH\n");
 
@@ -2499,7 +2493,7 @@ CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurement
 			cycleMeasure = CALCULATORVALUE;
 			DBG("cycleMeasure = CALCULATORVALUE\n");
 		}
-		if (io_getInput().in2 == _ON && cycleMeasure != CALCULATORVALUE) {
+		if (0 == GET_IN2 && cycleMeasure != CALCULATORVALUE) {
 			cycleMeasure = _ERROR_XY;
 		}
 	}
