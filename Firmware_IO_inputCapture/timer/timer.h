@@ -7,11 +7,13 @@
 #define TIME_STOP       0
 #define TIME_FINISH     2
 
-extern timer mtimer[MAX_TIME];
+extern timer mtimer;
 
 void timer_Init(void);
-uint8_t timer_Status(uint8_t time_id);
-void timer_Clear(uint8_t time_id);
-void timer_Start(uint8_t time_id, uint32_t count);
-uint32_t time_Stop(uint8_t time_id);
+uint8_t timer_Status();
+void timer_Clear();
+void timer_Start(uint32_t count);
+
+uint32_t time_getCount();
+void time_Stop();
 #endif

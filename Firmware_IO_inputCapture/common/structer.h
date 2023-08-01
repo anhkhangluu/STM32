@@ -42,14 +42,13 @@ typedef enum _CycleMeasure
     WAITMEASUREX1Y1,
     WAITRBSTABLEX1Y1,
     MEASUREX1Y1,
-	CYCLE_SEN_ERROR,
     WAITMEASUREX2Y2,
     WAITRBSTABLEX2Y2,
     MEASUREX2Y2,
     WAITSETVALUE,
-	WAITRESETVALUE,
     CALCULATORVALUE,
     _ERROR,
+	_ERROR_XY,
     FINISH
 }CycleMeasure;
 
@@ -57,8 +56,7 @@ typedef enum _CycleMeasureSensor
 {
     SEN_START = 0,
     SEN_STOP,
-    SEN_FINISH,
-	SEN_ERROR
+    SEN_FINISH
 }CycleMeasureSensor;
 
 typedef enum _GetInputType
@@ -137,6 +135,7 @@ typedef struct _input
 {
     uint8_t in0;
     uint8_t in1;
+    uint8_t in2;
 }input;
 
 typedef struct _output
@@ -168,10 +167,10 @@ typedef struct _timer
 
 typedef struct _VDRLZ_Input
 {
-	float V;
-	float D;
+	uint32_t V;
+	uint32_t D;
 	float R;
-	float L;
+	uint32_t L;
 	float Z;
 }VDRLZ_Input;
 

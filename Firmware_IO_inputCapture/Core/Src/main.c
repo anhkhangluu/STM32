@@ -43,8 +43,7 @@
 #include "math.h"
 #include "rtc.h"
 #include "flash.h"
-
-#define LED_DEBUG
+#include "unittest.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,6 +53,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//#define CDC_DEBUG
 #define TIME_WAIT 100
 
 #define MEASUREMENT_1		1
@@ -67,8 +67,14 @@
 
 #define EMPTY			-1 //this is the value return when at address of flash is empty data, this must be modify by other compiler
 
-#define false 	0
-#define true 	1
+
+
+#define CDC_LCD_DEBUG
+#ifdef CDC_LCD_DEBUG
+#define	DBG_LCD(x,format,variable) 	 do(uint8_t buf[100]; sprintf(buf,x format,variable);  CDC_Transmit_FS(buf,sizeof(buf));)while(0);
+#else
+	DBG_LCD(x)
+#endif //CDC_LCD_DEBUG
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -89,36 +95,37 @@ TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-volatile int32_t captureTime_X = 0;
-volatile int32_t captureTime_Y = 0;
-uint8_t counter_2 = 0;
+#define false 	0
+#define true 	1
 /*----------------------------DHCP - MODBUS-----------------------------*/
 volatile uint8_t ip_assigned = false;
-uint16_t usRegInputBuf[REG_INPUT_NREGS] = {0};
-uint16_t usRegHoldingBuf[REG_HOLDING_NREGS] = {0};
-uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = {0};
+
+uint16_t usRegInputBuf[REG_INPUT_NREGS] = { 0 };
+uint16_t usRegHoldingBuf[REG_HOLDING_NREGS] = { 0 };
+uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = { 0 };
 
 /*---------------------------------------------------*/
 
 /*----------------app.c----------------*/
-static dataMeasure mdata = {0};
+static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
 
-static Time mtime = {0};
 uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
 		NETINFO_DHCP };
 
-static button mbutton;
+volatile uint32_t captureTime_X = 0;
+volatile uint32_t captureTime_Y = 0;
+volatile static uint8_t mainScreenFlag = 0; //use for reset data calib
+volatile static button mbutton;
 volatile static input minput;
-volatile uint8_t trigger_in2 = _OFF;
-volatile static sensor msensor= {_OFF,_OFF};
+volatile static sensor msensor = {_OFF,_OFF};
 static output moutput;
 static ledStatus mledStatus;
-static MeasureValue mcalibValue;
-static MeasureValue mCurrentMeasureValue;
-volatile static MeasureValue mmeasureValue;
-static setCalibValue msetCalibValue_1; //for measurement1
-static setCalibValue msetCalibValue_2; //for measurement2
+MeasureValue mcalibValue;
+MeasureValue mmeasureValue;
+
+volatile static setCalibValue msetCalibValue_1; //for measurement1
+volatile static setCalibValue msetCalibValue_2; //for measurement2
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -140,7 +147,10 @@ void Callback_IPConflict(void) {
 
 }
 
-static void process_SD_Card(dataMeasure data, char *fileName);
+
+static void write_SDCard(dataMeasure data, char *fileName);
+static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex);
+
 static void W5500_init();
 
 /*---------------app.c------------*/
@@ -151,21 +161,24 @@ static void app_Measurement_1(void);
 static void app_Measurement_2(void);
 static void app_SetCalibValue(uint8_t measurementIndex);
 static void app_GetCalibValue(uint8_t measurementIndex);
-static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
-		uint8_t measurementIndex);
+
 static void app_HisValue(uint8_t measurementIndex);
 static void app_ClearAllOutput(void);
-static void app_SetCurrentMeasureValue(uint8_t measurementIndex);
-static void app_GetCurrentMeasureValue(uint8_t measurementIndex);
-static void app_TrigerOutputON(void);
-static void app_TrigerOutputOFF(void);
+
 static optionScreen_e_t app_optionMenu(void);
 static void app_processOptionMenu(optionScreen_e_t optionMenu);
 static void app_ShowIP(void);
 static void app_Init(void);
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex);
-
+static void app_SettingVDLRZ(void);
 static void updateMBRegister(void);
+
+/*----------cycle measurement function---------*/
+CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementIndex);
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex);
+CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurementIndex);
+CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurementIndex);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -180,7 +193,6 @@ static void updateMBRegister(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	optionScreen_e_t currentOption;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -205,40 +217,85 @@ int main(void)
   MX_SPI2_Init();
   MX_USART2_UART_Init();
   MX_FATFS_Init();
-  MX_USB_DEVICE_Init();
   MX_RTC_Init();
   MX_TIM6_Init();
   MX_TIM1_Init();
   MX_TIM3_Init();
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
+
 	HAL_TIM_Base_Start(&htim6); //use for delay_us
+	HAL_TIM_Base_Start_IT(&htim1); //timer interrupt every 100us
 	HAL_TIM_Base_Start(&htim3);
-	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);//LED back light
-	HAL_TIM_Base_Start_IT(&htim1);//timer interrupt every 100us
-	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1); //input capture SEN X
-	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2); //input capture SEN Y
+	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
+
+#if 0
+	for (int  i = 0;  i < 10; ++ i) {
 
 
-#if 1
-	process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
+	dataMeasure _data,__data;
+	_data.coordinates.R = 100;
+	_data.coordinates.X = -100;
+	_data.coordinates.Y = -1000;
+	_data.coordinates.Z = -2000;
+	_data.coordinates.aX = 2000;
+	_data.coordinates.aY = 4000;
+	_data.time.day = 10;
+	_data.time.hour = 20;
+	_data.time.minute = 40;
+	_data.time.month = 9;
+	_data.time.year = 20;
+	_data.mode = 4;
+
+	write_SDCard(_data, MEASUREMENT_1_FILE_NAME);
+//	process_SD_Card(_data, MEASUREMENT_1_FILE_NAME);
+	__data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+//	app_GotoMainScreen(CALIBSET, MEASUREMENT_1);
+	screen_DataMeasureType1(__data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
+	HAL_Delay(500);
+	dataMeasure ___data,____data;
+	___data.coordinates.R = 100;
+	___data.coordinates.X = -56;
+	___data.coordinates.Y = -14;
+	___data.coordinates.Z = -2000;
+	___data.coordinates.aX = 2000;
+	___data.coordinates.aY = 1200;
+	___data.time.day = 10;
+	___data.time.hour = 21;
+	___data.time.minute = 40;
+	___data.time.month = 9;
+	___data.time.year = 30;
+	___data.mode = 4;
+
+	write_SDCard(___data, MEASUREMENT_1_FILE_NAME);
+//	process_SD_Card(__data, MEASUREMENT_1_FILE_NAME);
+	____data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+	screen_DataMeasureType1(____data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
+	}
 	while(1);
 #endif
+
+
+#if 0
+	unitTestZ();
+#endif
 	app_Init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
 	while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		mdata.time = rtc_Now();
 		minput = io_getInput();
-//		uint32_t _time = 0;
+		mbutton = io_getButton();
+		uint32_t _time = 0;
 		if (menuScreenFlag) {
 			menuScreenFlag = 0;
-			currentOption = app_optionMenu();
-			app_processOptionMenu(currentOption);
+			app_processOptionMenu(app_optionMenu());
 		}
 
 		if (_ON == minput.in0) {
@@ -250,40 +307,37 @@ int main(void)
 			minput.in1 = _OFF;
 			app_Measurement_2(); //measurement 2
 		}
-		//------------------------------------------------------------------------------------------
 
-////////////////////////////////////////////////////
-//		if (_ON == mbutton.reset) {
-//			mbutton.reset = _OFF;
-//			timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB);
-//			do {
-//				/* code */
-//			} while (_ON == io_getButton().reset);
-//			_time = time_Stop(TIMER_CLEARCALIB);
-//
-//			if ((_time >= 10000) && (_time <= 30000)) {
-//				app_TrigerOutputOFF();
-//				moutput.out0 = _OFF;
-//				moutput.out1 = _OFF;
-//				moutput.out2 = _OFF;
-//				moutput.out3 = _OFF;
-//				moutput.out4 = _OFF;
-//				moutput.out5 = _OFF;
-//				moutput.out6 = _OFF;
-//				moutput.out7 = _OFF;
-//				io_setOutput(moutput,ucRegCoilsBuf);
-//				app_TrigerOutputON();
-//			} else if ((_time >= 50000)) {
-//				MeasureValue vl = { 0, 0, 0, 0, 0 };
-//				FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
-//				FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
-//				FLASH_ReadDataCalib(MEASUREMENT_1);
-//				mledStatus.led3 = _OFF;
-//				msetCalibValue_1 = CALIBRESET;
-//				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-//				app_GotoMainScreen(CALIBRESET, MEASUREMENT_1);
-//			}
-//		}
+		if (_ON == mbutton.reset) { //reset datacalib
+			mbutton.reset = _OFF;
+			timer_Start(TIMERMAXVALUE);
+			do {
+				/* code */
+			} while (_ON == io_getButton().reset);
+			_time = time_Stop(TIMER_CLEARCALIB);
+
+			if ((_time >= 100000 /*10sec*/)) {
+				MeasureValue vl = { 0, 0, 0, 0, 0 };
+				DBG("Clear DataCalib by RESET button\n");
+				if(mainScreenFlag == MEASUREMENT_1)
+				{
+					FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
+					mledStatus.led1= _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					msetCalibValue_1 = CALIBRESET;
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_1);
+				}
+				else
+				{
+					FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
+					mledStatus.led2= _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					msetCalibValue_2 = CALIBRESET;
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_2);
+				}
+
+			}
+		}
 	}
   /* USER CODE END 3 */
 }
@@ -368,7 +422,7 @@ static void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-
+#if 0
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date
@@ -408,7 +462,7 @@ static void MX_RTC_Init(void)
 	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
 		Error_Handler();
 	}
-
+#endif
   /* USER CODE END RTC_Init 2 */
 
 }
@@ -436,7 +490,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -515,7 +569,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 47;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 99;
+  htim1.Init.Period = 9;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -538,7 +592,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_FALLING;
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
   sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
   sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
   sConfigIC.ICFilter = 0;
@@ -701,9 +755,9 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
@@ -716,17 +770,17 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, W5500_CS_Pin|LED3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(W5500_CS_GPIO_Port, W5500_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(W5500_RS_GPIO_Port, W5500_RS_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOC, W5500_RS_Pin|LED1_Pin|LED2_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, OUT0_Pin|OUT1_Pin|OUT2_Pin|GPIO_PIN_8
                           |GPIO_PIN_9, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, LED1_Pin|LED2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);
@@ -787,7 +841,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : IN2_Pin */
   GPIO_InitStruct.Pin = IN2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(IN2_GPIO_Port, &GPIO_InitStruct);
 
@@ -867,8 +921,7 @@ static void W5500_init() {
 		return;
 	}
 
-	if(eMBSetSlaveID(SLAVE_ID, true, Vendor, sizeof(Vendor)) != MB_ENOERR)
-	{
+	if (eMBSetSlaveID(SLAVE_ID, true, Vendor, sizeof(Vendor)) != MB_ENOERR) {
 		return;
 	}
 
@@ -996,12 +1049,13 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 #endif
 }
 
-static void process_SD_Card(dataMeasure data, char *fileName) {
+static void write_SDCard(dataMeasure data, char *fileName) {
 	FATFS FatFs;
 	FIL fil;
 	char buff[110];
 	unsigned int BytesWr;
-	f_mount(&FatFs, "", 0); //mount SD card
+	if(f_mount(&FatFs, "", 0) != FR_OK)//mount SD card
+		return;
 #if 0	//turn on this macro if you want to check the free space of SD card
 		DWORD fre_clust;
 		uint32_t totalSpace;
@@ -1013,60 +1067,124 @@ static void process_SD_Card(dataMeasure data, char *fileName) {
 		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
-	f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE); //In this mode, it will create the file if file not existed
-	sprintf(buff,
-			"20%02d-%02d-%02d %02d:%02d  R =%d; X =%d; Y =%d; Z =%d; A =%d ; B =%d; mode =%d\r\n",
-			data.time.year, data.time.month, data.time.day, data.time.hour,
-			data.time.minute, data.coordinates.R, data.coordinates.X,
-			data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
-			data.coordinates.aY, data.mode);
-	f_lseek(&fil, f_size(&fil));
-	f_write(&fil, buff, strlen(buff), &BytesWr);
-	f_close(&fil);
+	if (f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE) == FR_OK) //In this mode, it will create the file if file not existed
+			{
+		sprintf(buff,
+				"20%02u/%02u/%02u - %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
+				data.time.year, data.time.month, data.time.day, data.time.hour,
+				data.time.minute, data.coordinates.R, data.coordinates.X,
+				data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
+				data.coordinates.aY, data.mode);
+		f_lseek(&fil, f_size(&fil));
+		f_write(&fil, buff, strlen(buff), &BytesWr);
+		f_close(&fil);
+
+	}
 	f_mount(NULL, "", 0);
 }
 
+static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
+	FATFS FatFs;
+	FIL fil;
+	char buff[80];
+	dataMeasure data = {0};
+	
+	unsigned int totalLines = 0;
+
+	if(f_mount(&FatFs, "", 1) != FR_OK) //mount SD card
+		return data;
+	if(f_open(&fil, fileName, FA_READ)!= FR_OK)
+		return data;
+
+	// Count the total number of lines in the file
+    while (f_gets(buff, 100, &fil) != FR_OK) {
+    	totalLines++;
+    }
+
+    f_lseek(&fil, 0); // move pointer to beginning of file
+
+    while(totalLines - lineIndex > 0)
+    {
+    	totalLines --;
+    	f_gets(buff, sizeof(buff), &fil);
+    }
+    f_close(&fil);
+    f_mount(NULL, "", 0);
+//    uint8_t itemparse = sscanf(buff, "20%hhi-%hhi-%hhi %hhi:%hhi,%hi,%hi,%hi,%hi,%hi,%hi,%hhi\n", &data->time.year, &data->time.month, &data->time.day, &data->time.hour,
+//			&data->time.minute, &data->coordinates.R, &data->coordinates.X,
+//			&data->coordinates.Y, &data->coordinates.Z, &data->coordinates.aX,
+//			&data->coordinates.aY, &data->mode);
+    unsigned short int  year,month,day,hour,minute;
+//    char _buff[] = "2021-7-24 12:34,100,200,300,400,500,600,1";
+    char *token = strtok(buff, ",");
+    sscanf(token, "20%hu/%hu/%hu - %hu:%hu", &year, &month, &day, &hour,
+    			&minute);
+
+    data.time.day = (uint8_t)day;
+    data.time.hour = (uint8_t)hour;
+    data.time.minute = (uint8_t)minute;
+    data.time.month = (uint8_t)month;
+    data.time.year = (uint8_t)year;
+
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hi", &data.coordinates.R);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hi", &data.coordinates.X);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hi", &data.coordinates.Y);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hi", &data.coordinates.Z);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hi", &data.coordinates.aX);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hi", &data.coordinates.aY);
+	token = strtok(NULL, ",");
+
+	sscanf(token, "%hhu", &data.mode);
+	return data;
+}
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 	if (htim == &htim1) {
-		uint8_t i;
-		for (i = 0; i < MAX_TIME; i++) {
-			if (TIME_RUN == mtimer[i].status) {
-				mtimer[i].inc += 1;
-				if (mtimer[i].inc >= mtimer[i].count) {
-					mtimer[i].status = TIME_FINISH;
-					mtimer[i].flat = 1;
-				}
+		if (TIME_RUN == mtimer.status) {
+			mtimer.inc += 1;
+			if (mtimer.inc >= mtimer.count) {
+				mtimer.status = TIME_FINISH;
+				mtimer.flat = 1;
 			}
 		}
-		updateMBRegister(); //update modbus register every 100us
+//		updateMBRegister(); //update modbus register every 100us
 	}
 }
 static void app_SettingVDLRZ(void) {
 	VDRLZ_CycleSet cycle = V_set;
 	uint8_t exit = 0;
-	VDRLZ_Input buffer;
+	VDRLZ_Input buffer = FLASH_ReadVDRLZ();
 
-	LCD_Clear();
 	do {
 		if (cycle == V_set) {
-			FLASH_ReadVDRLZ(&buffer);
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, V_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					buffer.V += 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					buffer.V += 1;
+					screen_setVDRLZ(buffer, V_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.V -= 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					buffer.V -= 1;
+					screen_setVDRLZ(buffer, V_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1083,24 +1201,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == V_set);
 		}
 		if (cycle == D_set) {
-			FLASH_ReadVDRLZ(&buffer);
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, D_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					buffer.D += 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					buffer.D += 1;
+					screen_setVDRLZ(buffer, D_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.D -= 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					buffer.D -= 1;
+					screen_setVDRLZ(buffer, D_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1122,24 +1237,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == D_set);
 		}
 		if (cycle == R_set) {
-			FLASH_ReadVDRLZ(&buffer);
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, R_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
 					buffer.R += 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, R_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
 					buffer.R -= 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, R_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1161,24 +1273,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == R_set);
 		}
 		if (cycle == L_set) {
-			FLASH_ReadVDRLZ(&buffer);
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, L_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					buffer.L += 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					buffer.L += 1;
+					screen_setVDRLZ(buffer, L_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.L -= 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					buffer.L -= 1;
+					screen_setVDRLZ(buffer, L_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.next) {
@@ -1200,24 +1309,21 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == L_set);
 		}
 		if (cycle == Z_set) {
-			FLASH_ReadVDRLZ(&buffer);
-			screen_setVDRLZ(buffer, cycle);
+			screen_setVDRLZ(buffer, Z_set);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
 					buffer.Z += 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					screen_setVDRLZ(buffer, Z_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.Z -= 0.1;
-					FLASH_WriteVDRLZ(buffer);
-					screen_setVDRLZ(buffer, cycle);
+					buffer.Z -=0.1;
+					screen_setVDRLZ(buffer, Z_set);
 					HAL_Delay(TIME_WAIT);
 				}
 				if (_ON == mbutton.prev) {
@@ -1234,32 +1340,27 @@ static void app_SettingVDLRZ(void) {
 			} while (cycle == Z_set);
 		}
 	} while (exit == 0);
-
-	if (exit)
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
+	FLASH_WriteVDRLZ(&buffer);
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
-// app.c
+
 static void app_SettingRtc(void) {
 	CycleTime cycle = SET_YEAR;
 	uint8_t exit = 0;
-	uint8_t tmp = 0;
+	Time mtime = rtc_Now();
 	LCD_Clear();
 	do {
 		/*set year*/
 		if (SET_YEAR == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_YEAR);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					tmp = ((mtime.year >= 2000) ?
-							(mtime.year - 2000) : (uint8_t) mtime.year);
-					tmp += 1;
-					if (99 < tmp)
-						tmp = 0;
-					rtc_SetDateTime(mtime);
+					mtime.year++;
+					if (99 < mtime.year)
+						mtime.year = 0;
 					screen_setDateTime(mtime, SET_YEAR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1271,11 +1372,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					if (0 == tmp)
-						tmp = 99;
-					else
-						tmp--;
-					rtc_SetDateTime(mtime);
+					mtime.year--;
+					if (99 < mtime.year)
+						mtime.year = 99;
 					screen_setDateTime(mtime, SET_YEAR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1290,18 +1389,15 @@ static void app_SettingRtc(void) {
 		}
 		/*set month*/
 		if (SET_MONTH == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_MONTH);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-
-					mtime.month += 1;
+					mtime.month++;
 					if (12 < mtime.month)
 						mtime.month = 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MONTH);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1313,12 +1409,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-
-					if (1 == mtime.month)
+					mtime.month--;
+					if (12 < mtime.month)
 						mtime.month = 12;
-					else
-						mtime.month -= 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MONTH);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1337,17 +1430,15 @@ static void app_SettingRtc(void) {
 		}
 		/*set day*/
 		if (SET_DAY == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_DAY);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					mtime.day += 1;
+					mtime.day ++;
 					if (31 < mtime.day)
 						mtime.day = 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_DAY);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1359,10 +1450,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					mtime.day -= 1;
-					if (0 == mtime.day)
+					mtime.day--;
+					if (31 < mtime.day)
 						mtime.day = 31;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_DAY);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1381,7 +1471,6 @@ static void app_SettingRtc(void) {
 		}
 		/*set hour*/
 		if (SET_HOUR == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_HOUR);
 			do {
 				mbutton = io_getButton();
@@ -1391,7 +1480,7 @@ static void app_SettingRtc(void) {
 					mtime.hour += 1;
 					if (23 < mtime.hour)
 						mtime.hour = 0;
-					rtc_SetDateTime(mtime);
+
 					screen_setDateTime(mtime, SET_HOUR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1404,11 +1493,9 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					if (0 == mtime.hour)
+					mtime.hour--;
+					if (23 < mtime.hour)
 						mtime.hour = 23;
-					else
-						mtime.hour -= 1;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_HOUR);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1427,18 +1514,16 @@ static void app_SettingRtc(void) {
 		}
 		/*set minute*/
 		if (SET_MINUTE == cycle) {
-			mtime = rtc_Now();
 			screen_setDateTime(mtime, SET_MINUTE);
 			do {
 				mbutton = io_getButton();
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					mtime.minute += 1;
+					mtime.minute++;
 					if (59 < mtime.minute)
 						mtime.minute = 1;
 					mtime.second = 0;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MINUTE);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1450,12 +1535,10 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					if (0 == mtime.minute)
+					mtime.minute--;
+					if (59 < mtime.minute)
 						mtime.minute = 59;
-					else
-						mtime.minute -= 1;
 					mtime.second = 0;
-					rtc_SetDateTime(mtime);
 					screen_setDateTime(mtime, SET_MINUTE);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1468,18 +1551,13 @@ static void app_SettingRtc(void) {
 			} while (SET_MINUTE == cycle);
 		}
 	} while (0 == exit);
-	if (exit)
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
+	rtc_SetDateTime(mtime);
+//	dataMeasure temp = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
 static void app_Measurement_1(void) {
 	volatile CycleMeasure cycleMeasure = STOP;
-	CycleMeasureSensor cycleMeasureX = SEN_STOP;
-	CycleMeasureSensor cycleMeasureY = SEN_STOP;
-
-	SensorChange XStatus = SENSORNOCHANGE;
-	SensorChange YStatus = SENSORNOCHANGE;
-	GetInputType getInput = GET_SENSOR;
 
 	mdata.coordinates.X = 0;
 	mdata.coordinates.Y = 0;
@@ -1494,414 +1572,135 @@ static void app_Measurement_1(void) {
 	mmeasureValue.Y2 = 0;
 	mmeasureValue.Z = 0;
 
-	do {
-		if (GET_BUTTON == getInput) {
-			mbutton = io_getButton();
+	DBG("START MEASUREMENT 1\r\n");
+
+	cycleMeasure = meas_checkSensor(cycleMeasure, MEASUREMENT_1);
+	if (cycleMeasure == _ERROR) {
+		DBG("cycleMeasure == _ERROR");
+	}
+	cycleMeasure = meas_measurementZ(cycleMeasure, MEASUREMENT_1);
+	cycleMeasure = meas_measurementX1Y1(cycleMeasure, MEASUREMENT_1);
+	cycleMeasure = meas_measurementX2Y2(cycleMeasure, MEASUREMENT_1);
+
+	while (cycleMeasure == _ERROR_XY) {
+		DBG("Sensor X/Y Error");
+		uint32_t _time = 0;
+		mledStatus.led1 = _ON;
+		mledStatus.led2 = _ON;
+		io_setLedStatus(mledStatus, ucRegCoilsBuf);
+		HAL_Delay(500);
+		mledStatus.led1 = _OFF;
+		mledStatus.led2 = _OFF;
+		io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
+		moutput.out2 = _ON;
+		moutput.out3 = _ON;
+		io_setOutput(moutput, ucRegCoilsBuf);
+
+		//TODO: man hinh hien thi ERROR
+
+		if (io_getButton().reset == _ON) {
+			timer_Start(TIMERMAXVALUE);
+			while (io_getButton().reset == _ON)
+				;
+			_time = time_Stop(TIMER_CLEARSENSOR);
+
 		}
-		minput = io_getInput();
-		/********************************************## 1 ##*******************************************/
-		/*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
-		if ((STOP == cycleMeasure) && (_ON == minput.in0)) // X10=ON
+		if (_time > 20000) //time press reset button longer than 2sec
 				{
-			app_ClearAllOutput();
-			minput.in0 = _OFF;
-			cycleMeasure = CLEARSENSOR;
-			getInput = GET_SENSOR;
-			timer_Start(TIMER_CLEARSENSOR, TIMERCLEARSENSOR);
-			moutput.out4 = _ON; //using for clear sensor
-			io_setOutput(moutput,ucRegCoilsBuf);
-//            DBG("cycleMeasure = CLEARSENSOR\n");
-		}
-		/********************************************## 2 ##*******************************************/
-		/********************************************## 3 ##*******************************************/
-		/*Waiting clear Sensor*/
-		if ((CLEARSENSOR == cycleMeasure)
-				&& (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR))) {
-			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
-				moutput.out4 = _OFF;
-				moutput.out0 = _ON;
-				io_setOutput(moutput,ucRegCoilsBuf);
-				cycleMeasure = WAITMEASUREZ;
-//                DBG("SENSOR OK\n");
-			} else {
-				moutput.out0 = _OFF;
-				moutput.out4 = _OFF;
-#ifdef LED_DEBUG
-				moutput.out5 = _ON;
-#endif
-				io_setOutput(moutput,ucRegCoilsBuf);
-				cycleMeasure = ERROR;
-//                DBG("SENSOR NOT OK\n");
-			}
-			getInput = GET_SENSOR;
-		}
-#ifdef LED_DEBUG
-				if(STOP == cycleMeasure && moutput.out4 == _ON && trigger_in2 == _ON)
-				{
-					moutput.out6 = _ON;
-					io_setOutput(moutput,ucRegCoilsBuf);
-				}
-#endif
-		/********************************************## 4 ##*******************************************/
-		/*Measure Z*/
-		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN0)) {
-			if (trigger_in2 == _ON) //C=1
-					{
-				/*Start couter*/
-				trigger_in2 = _OFF;
-				msensor.s0 = _OFF;
-				msensor.s1 = _OFF;
-				getInput = GET_SENSOR;
-				cycleMeasure = CHECKZVALUE;
-//                DBG("C=1 START TIME MEASURE Z\n");
-			}
-		};
-		/********************************************## 5 ##*******************************************/
-		while (((CHECKZVALUE == cycleMeasure) || (Z_OK == cycleMeasure)
-				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN0)) {
-			if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2 /*C=2*/)
-					&& (_ON == msensor.s0) && (_ON == msensor.s1)) {
-				moutput.out1 = _ON; //start calculator Z
-				io_setOutput(moutput, ucRegCoilsBuf);
-				app_GetCurrentMeasureValue(MEASUREMENT_1);
-				if(captureTime_X > captureTime_Y)
-					mmeasureValue.Z = captureTime_X;
-				else
-					mmeasureValue.Z = captureTime_Y;
-
-				mmeasureValue.X1 = mCurrentMeasureValue.X1;
-				mmeasureValue.Y1 = mCurrentMeasureValue.Y1;
-				mmeasureValue.X2 = mCurrentMeasureValue.X2;
-				mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
-				app_SetCurrentMeasureValue(MEASUREMENT_1);
-
-				mdata.mode = ZONLY;
-				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
-				NOT_SHOW_HIS);
-				cycleMeasure = Z_OK;
-				getInput = GET_BUTTON;
-				XStatus = SENSORCHANGE;
-				YStatus = SENSORCHANGE;
-				process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME);
-//                DBG("C=2 MEASURE Z OK\n");
-				trigger_in2 = _OFF;
-				msensor.s0 = _OFF;
-				msensor.s1 = _OFF;
-			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2)
-					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) {
-				trigger_in2 = _OFF;
-				moutput.out1 = _OFF;
-				io_setOutput(moutput, ucRegCoilsBuf);
-				cycleMeasure = Z_NOT_OK;
-				getInput = GET_SENSOR;
-				mdata.mode = ZERROR1;
-//				screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,
-//				NOT_SHOW_HIS);
-//                DBG("C=2 MEASURE Z NOT OK\n");
-			}
-			if ((Z_OK == cycleMeasure || Z_NOT_OK == cycleMeasure)) {
-				cycleMeasure = WAITMEASUREX1Y1;
-//                DBG("C=2 cycleMeasure = WAITMEASUREX1Y1\n");
-			}
-//			if ((_ON == mbutton.set) && (_ON == moutput.out1)) {
-//				while(_ON == io_getButton().set);
-//				mledStatus.led1 = _ON;
-//				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-//				cycleMeasure = WAITMEASUREX1Y1;
-//				getInput = GET_SENSOR;
-//	//            DBG("SET Z\n");
-//				app_SetCalibValue(MEASUREMENT_1);
-//				app_GetCalibValue(MEASUREMENT_1);
-//			}
-		}
-#ifdef LED_DEBUG
-		if(cycleMeasure == WAITMEASUREX1Y1 && (_OFF == msensor.s0) || (_OFF == msensor.s1))
-		{
-//			moutput.out7 = _ON;
-			io_setOutput(moutput, ucRegCoilsBuf);
-		}
-#endif
-		/********************************************## 6 ##*******************************************/
-		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
-		while (WAITMEASUREX1Y1 == cycleMeasure && 0 == GET_IN0) {
-			if(1 == GET_IN0 /*I0 = OFF -> stop measure X1Y1*/ && cycleMeasure == WAITMEASUREX1Y1 && moutput.out1 == _ON)
-			{
-				cycleMeasure = _ERROR; //stop
-				app_SetCalibValue(MEASUREMENT_1);
-				app_GetCalibValue(MEASUREMENT_1);
-			}
-			if (_ON == trigger_in2) //C=3
-					{
-				/*Start couter*/
-				trigger_in2 = _OFF;
-				cycleMeasure = MEASUREX1Y1;
-				getInput = GET_SENSOR;
-				cycleMeasureX = SEN_START;
-				cycleMeasureY = SEN_START;
-//                DBG("Start counter X1, Y1\n");
-			}
-		};
-		while ((MEASUREX1Y1 == cycleMeasure) && (0 == GET_IN0)) {
-			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
-				/*Stop couter X*/
-				mmeasureValue.X1 = captureTime_X;
-				msensor.s0 = _OFF;
-				cycleMeasureX = SEN_FINISH;
-				getInput = GET_SENSOR;
-				XStatus = SENSORCHANGE;
-//				DBG("X1 = SEN_FINISH\n");
-				// DBG("mmeasureValue.X1 = %d\n",mmeasureValue.X1);
-			}
-			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
-				/*Stop couter Y*/
-				mmeasureValue.Y1 = captureTime_Y;
-				msensor.s1 = _OFF;
-				cycleMeasureY = SEN_FINISH;
-				getInput = GET_SENSOR;
-				YStatus = SENSORCHANGE;
-//				DBG("Y1 = SEN_FINISH\n");
-				// DBG("mmeasureValue.Y1 = %d\n",mmeasureValue.Y1);
-			}
-			if ((SEN_FINISH == cycleMeasureX)
-					&& (SEN_FINISH == cycleMeasureY)) {
-				cycleMeasureX = SEN_STOP;
-				cycleMeasureY = SEN_STOP;
-				cycleMeasure = WAITMEASUREX2Y2;
-				getInput = GET_SENSOR;
-//                DBG("cycleMeasure = WAITMEASUREX2Y2\n");
-			}
-			//if(_ON == minput.in1) //C=4
-			//{
-			//    if(SEN_START == cycleMeasureX)
-			//    {
-			//        mmeasureValue.X1 = 0;
-			//    }
-			//    if(SEN_START == cycleMeasureY)
-			//    {
-			//        mmeasureValue.Y1 = 0;
-			//    }
-			//    cycleMeasureX = SEN_STOP;
-			//    cycleMeasureY = SEN_STOP;
-			//    cycleMeasure = WAITMEASUREX2Y2;
-			//    getInput = GET_SENSOR;
-			//    (void)time_Stop(TIMER_X);
-			//    (void)time_Stop(TIMER_Y);
-			//    DBG("MEASUREX1Y1 == cycleMeasure C=4\n");
-			//}
-		};
-		/********************************************## 7 ##*******************************************/
-		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
-		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN0)) {
-
-			if (_ON == trigger_in2) // C=4
-					{
-				if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
-				{
-					cycleMeasureX = SEN_ERROR;
-					cycleMeasureY = SEN_ERROR;
-					cycleMeasure = CYCLE_SEN_ERROR;
-				}
-				else
-				{
-					/*Start couter*/
-					msensor.s1 = _OFF;
-					msensor.s0 = _OFF;
-					trigger_in2 = _OFF;
-					cycleMeasure = MEASUREX2Y2;
-					getInput = GET_SENSOR;
-					cycleMeasureX = SEN_START;
-					cycleMeasureY = SEN_START;
-	//                DBG("cycleMeasure = WAITMEASUREX2Y2 C=4\n");
-				}
-			}
-		};
-		while ((MEASUREX2Y2 == cycleMeasure) && (0 == GET_IN0)) {
-			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
-				/*Stop couter X*/
-				mmeasureValue.X2 = captureTime_X;
-				msensor.s0 = _OFF;
-				cycleMeasureX = SEN_FINISH;
-				getInput = GET_SENSOR;
-				XStatus = SENSORCHANGE;
-//                DBG("X2 = SEN_FINISH\n");
-			}
-			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
-				/*Stop couter X*/
-				mmeasureValue.Y2 = captureTime_Y;
-				msensor.s1 = _OFF;
-				cycleMeasureY = SEN_FINISH;
-				getInput = GET_SENSOR;
-				YStatus = SENSORCHANGE;
-//                DBG("Y2 = SEN_FINISH\n");
-			}
-			if ((SEN_FINISH == cycleMeasureX)
-					&& (SEN_FINISH == cycleMeasureY)) {
-				cycleMeasureX = SEN_STOP;
-				cycleMeasureY = SEN_STOP;
-				cycleMeasure = WAITRESETVALUE;
-				getInput = GET_BUTTON;
-//                DBG("WAITSETVALUE == cycleMeasure\n");
-			}
-			// if(_ON == minput.in1) //C=5
-			// {
-			//     if(SEN_START == cycleMeasureX)
-			//     {
-			//         mmeasureValue.X2 = 0;
-			//     }
-			//     if(SEN_START == cycleMeasureY)
-			//     {
-			//         mmeasureValue.Y2 = 0;
-			//     }
-			//     cycleMeasureX = SEN_STOP;
-			//     cycleMeasureY = SEN_STOP;
-			//     cycleMeasure = CALCULATORVALUE;
-			//     getInput = GET_SENSOR;
-			//     (void)time_Stop(TIMER_X);
-			//     (void)time_Stop(TIMER_Y);
-			// }
-		};
-		/*Robot di chuyển tới vị trí P18*/
-		if (_ON == mbutton.reset && cycleMeasure == WAITRESETVALUE) {
-			uint32_t _time = 0;
-			mbutton.reset = _OFF;
-			timer_Start(TIMER_CLEARCALIB, TIMERMAXVALUE); //start counting long press of RESET button
-			do {
-				/* code */
-			} while (_ON == io_getButton().reset);
-			_time = time_Stop(TIMER_CLEARCALIB);
-
-			if (_time >= 100000) /*if holding the RESET button longer than 10sec*/{
-				MeasureValue vl = { 0, 0, 0, 0, 0 };
-				FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
-				app_GetCalibValue(MEASUREMENT_1);
-				mledStatus.led1 = _OFF;
-				msetCalibValue_1 = CALIBRESET;
-				io_setLedStatus(mledStatus,ucRegCoilsBuf);
-				cycleMeasure = WAITSETVALUE;
-//				app_GotoMainScreen(CALIBRESET);
-
-			}
-		}
-		if ((WAITSETVALUE == cycleMeasure) && (_ON == mbutton.set)) {
-			while(_ON == io_getButton().set);
-			app_GetCalibValue(MEASUREMENT_1);
-			if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
-					&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
-					&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
-				app_SetCalibValue(MEASUREMENT_1);
-				app_GetCalibValue(MEASUREMENT_1);
+			if(msetCalibValue_1 == CALIBSET)
 				mledStatus.led1 = _ON;
-				msetCalibValue_1 = CALIBSET;
-				cycleMeasure = CALCULATORVALUE;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-			}
-			getInput = GET_SENSOR;
-			trigger_in2 = _OFF;
-//            DBG("cycleMeasure = CALCULATORVALUE\n");
-		}
-		/********************************************## 8 ##*******************************************/
-		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
-				&& (_ON == trigger_in2)) // C=5
-				{
-			if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
-			{
-				cycleMeasureX = SEN_ERROR;
-				cycleMeasureY = SEN_ERROR;
-				cycleMeasure = CYCLE_SEN_ERROR;
-			}
 			else
-			{
-				trigger_in2 = _OFF;
-				cycleMeasure = FINISH;
-				getInput = GET_BUTTON;
-				/*Calculator Value - Print to screen*/
-				app_SetCurrentMeasureValue(MEASUREMENT_1);
-				if (ZONLY == mdata.mode) {
-					mdata.mode = MEASUREALL;
-				} else if (ZERROR1 == mdata.mode) {
-					mdata.mode = ZERROR2;
-				}
-				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
-				if(msetCalibValue_1 == CALIBRESET)
-					screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1,	NOT_SHOW_HIS);
-				process_SD_Card(mdata, MEASUREMENT_1_FILE_NAME); //TODO: check
-				//            DBG("cycleMeasure = FINISH C=5\n");
-			}
-		}
+				mledStatus.led1 = _OFF;
 
-		while(cycleMeasure == CYCLE_SEN_ERROR) //measure XY Error
-		{
-			mbutton = io_getButton();
-			moutput.out2 = _ON;
-			moutput.out3 = _ON;
+			if(msetCalibValue_2 == CALIBSET)
+				mledStatus.led2 = _ON;
+			else
+				mledStatus.led2 = _OFF;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
+			moutput.out2 = _OFF;
+			moutput.out3 = _OFF;
 			io_setOutput(moutput, ucRegCoilsBuf);
+			cycleMeasure = ERROR;
+		}
 
-			mledStatus.led1 = _ON;
-			mledStatus.led2 = _ON;
-			io_setLedStatus(mledStatus, ucRegCoilsBuf);
-			HAL_Delay(300);
-			mledStatus.led1 = _OFF;
-			mledStatus.led2 = _OFF;
-			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+	}
 
-			screen_DataMeasureType1(mdata, SEN_ERROR, MEASUREMENT_1, NOT_SHOW_HIS); //SHOW ... ...
-
-			if(mbutton.reset == _ON)
-			{
-				uint32_t _time = 0;
-				mbutton.reset = _OFF;
-				timer_Start(TIMER_CLEARCALIB, TIMERMAXVALUE); //start counting long press of RESET button
-				do {
-					/* hold button */
-				} while (_ON == io_getButton().reset);
-				_time = time_Stop(TIMER_CLEARCALIB);
-				if(_time > 20000) //press RESET button longer than 2sec
+	while (CALCULATORVALUE == cycleMeasure && (0 == GET_IN0)) {
+		minput = io_getInput();
+		if (_ON == minput.in2)  //C = 5
 				{
-					moutput.out2 = _OFF;
-					moutput.out3 = _OFF;
-					io_setOutput(moutput, ucRegCoilsBuf);
-					mledStatus.led1 = _OFF;
-					mledStatus.led2 = _OFF;
+			minput.in2 = _OFF;
+			cycleMeasure = FINISH;
+			DBG("cycleMeasure = FINISH");
+
+			if (ZONLY == mdata.mode) {
+				mdata.mode = MEASUREALL;
+			} else if (ZERROR1 == mdata.mode) {
+				mdata.mode = ZERROR2; // macro for LCD to print Z =... (Z cannot measure)
+			}
+			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_1);
+
+			if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
+				write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
+			}
+			screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1, NOT_SHOW_HIS);
+			while (_ON == io_getInput().in2 && (0 == GET_IN0))
+				;
+		}
+	}
+
+	while (cycleMeasure == FINISH && (0 == GET_IN0)) {
+		//waiting for GET_IN0 = 1 to set calib
+	}
+
+	if (GET_IN0 == 1 /*end of cycle measurement */) {
+		moutput.out0 = _OFF;
+		moutput.out1 = _OFF;
+		moutput.out2 = _OFF;
+		moutput.out3 = _OFF;
+		moutput.out4 = _OFF;
+		moutput.out5 = _OFF;
+		moutput.out6 = _OFF;
+		moutput.out7 = _OFF;
+		io_setOutput(moutput, ucRegCoilsBuf);
+
+		if(cycleMeasure == WAITMEASUREX1Y1 && CALIBSET == msetCalibValue_1) // write to SD card if only measure Z
+			write_SDCard(mdata, MEASUREMENT_1_FILE_NAME);
+
+		if (cycleMeasure == FINISH && CALIBRESET == msetCalibValue_1) {
+			/*-----SET value -----*/
+			timer_Start(TIMERSETCALIB); //wait SET button in 6sec
+			do {
+				mbutton = io_getButton();
+			} while (TIME_FINISH != timer_Status()
+					&& mbutton.set != _ON);
+			if (_ON == mbutton.set) {
+				app_GetCalibValue(MEASUREMENT_1);
+				if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
+						&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
+						&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
+					app_SetCalibValue(MEASUREMENT_1);
+					mledStatus.led1 = _ON;
+					msetCalibValue_1 = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-					LCD_Clear();
-					cycleMeasure = _ERROR;
+					DBG("cycleMeasure = SET_DONE\n");
+					app_CalculatorValue(FINISH, mdata.mode, MEASUREMENT_1);
+					mainScreenFlag = MEASUREMENT_1;
+					screen_DataMeasureType1(mdata, msetCalibValue_1, MEASUREMENT_1, NOT_SHOW_HIS);
+					//in man hinh 0
 				}
 			}
-
 		}
-	} while (0 == GET_IN0);
+		else
+			app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 
-	app_TrigerOutputOFF();
-	moutput.out0 = _OFF;
-	moutput.out1 = _OFF;
-	moutput.out3 = _OFF;
-	moutput.out4 = _OFF;
-	moutput.out5 = _OFF;
-	moutput.out6 = _OFF;
-	moutput.out7 = _OFF;
-
-	if ((SENSORNOCHANGE == XStatus) || (SENSORNOCHANGE == YStatus)) {
-//		moutput.out0 = _ON;
-	} else {
-//		moutput.out0 = _OFF;
 	}
-	io_setOutput(moutput,ucRegCoilsBuf);
-//	app_TrigerOutputON();
-	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_1)) {
-		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_1);
-	}
-	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
+static void app_Measurement_2(void) {
 
-static void app_Measurement_2(void){
 	volatile CycleMeasure cycleMeasure = STOP;
-	CycleMeasureSensor cycleMeasureX = SEN_STOP;
-	CycleMeasureSensor cycleMeasureY = SEN_STOP;
-
-	SensorChange XStatus = SENSORNOCHANGE;
-	SensorChange YStatus = SENSORNOCHANGE;
-	GetInputType getInput = GET_SENSOR;
 
 	mdata.coordinates.X = 0;
 	mdata.coordinates.Y = 0;
@@ -1916,416 +1715,149 @@ static void app_Measurement_2(void){
 	mmeasureValue.Y2 = 0;
 	mmeasureValue.Z = 0;
 
-	do {
-		if (GET_BUTTON == getInput) {
-			mbutton = io_getButton();
+	DBG("===START MEASUREMENT 2===\r\n");
+
+	cycleMeasure = meas_checkSensor(cycleMeasure, MEASUREMENT_2);
+	if (cycleMeasure == _ERROR) {
+		DBG("cycleMeasure == _ERROR");
+	}
+	
+	cycleMeasure = meas_measurementZ(cycleMeasure, MEASUREMENT_2);
+	cycleMeasure = meas_measurementX1Y1(cycleMeasure, MEASUREMENT_2);
+	cycleMeasure = meas_measurementX2Y2(cycleMeasure, MEASUREMENT_2);
+
+	while (cycleMeasure == _ERROR_XY) {
+		DBG("Sensor X/Y Error");
+		uint32_t _time = 0;
+		mledStatus.led1 = _ON;
+		mledStatus.led2 = _ON;
+		io_setLedStatus(mledStatus, ucRegCoilsBuf);
+		HAL_Delay(500);
+		mledStatus.led1 = _OFF;
+		mledStatus.led2 = _OFF;
+		io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
+		moutput.out2 = _ON;
+		moutput.out3 = _ON;
+		io_setOutput(moutput, ucRegCoilsBuf);
+
+		//TODO: man hinh hien thi ERROR
+
+		if (io_getButton().reset == _ON) {
+			timer_Start(TIMER_CLEARSENSOR, TIMERMAXVALUE);
+			while (io_getButton().reset == _ON)
+				;
+			_time = time_Stop(TIMER_CLEARSENSOR);
+
 		}
-		minput = io_getInput();
-		/********************************************## 1 ##*******************************************/
-		/*Robot di chuyển tới vị trí P0 Robot xuất tín hiệu cho I0,I1 cho phép quá trình bắt đầu*/
-		if ((STOP == cycleMeasure) && (_ON == minput.in0)) // X10=ON
+		if (_time > 20000) //time press reset button longer than 2sec
 				{
-			app_ClearAllOutput();
-			minput.in0 = _OFF;
-			cycleMeasure = CLEARSENSOR;
-			getInput = GET_SENSOR;
-			timer_Start(TIMER_CLEARSENSOR, TIMERCLEARSENSOR);
-			moutput.out4 = _ON; //using for clear sensor
-			io_setOutput(moutput,ucRegCoilsBuf);
-//            DBG("cycleMeasure = CLEARSENSOR\n");
-		}
-		/********************************************## 2 ##*******************************************/
-		/********************************************## 3 ##*******************************************/
-		/*Waiting clear Sensor*/
-		if ((CLEARSENSOR == cycleMeasure)
-				&& (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR))) {
-			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
-				moutput.out4 = _OFF;
-				moutput.out0 = _ON;
-				io_setOutput(moutput,ucRegCoilsBuf);
-				cycleMeasure = WAITMEASUREZ;
-//                DBG("SENSOR OK\n");
-			} else {
-				moutput.out0 = _OFF;
-				moutput.out4 = _OFF;
-				io_setOutput(moutput,ucRegCoilsBuf);
-				cycleMeasure = ERROR;
-//                DBG("SENSOR NOT OK\n");
-			}
-			getInput = GET_SENSOR;
-		}
-		/********************************************## 4 ##*******************************************/
-		/*Measure Z*/
-		while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_IN1)) {
-			if (trigger_in2 == _ON) //C=1
-					{
-				/*Start couter*/
-				trigger_in2 = _OFF;
-				msensor.s0 = _OFF;
-				msensor.s1 = _OFF;
-				getInput = GET_SENSOR;
-				cycleMeasure = CHECKZVALUE;
-//                DBG("C=1 START TIME MEASURE Z\n");
-			}
-		};
-		/********************************************## 5 ##*******************************************/
-		while (((CHECKZVALUE == cycleMeasure) || (Z_OK == cycleMeasure)
-				|| (Z_NOT_OK == cycleMeasure)) && (0 == GET_IN1)) {
-			if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2 /*C=2*/)
-					&& (_ON == msensor.s0) && (_ON == msensor.s1)) {
-				moutput.out1 = _ON; //start calculator Z
-				io_setOutput(moutput, ucRegCoilsBuf);
-				app_GetCurrentMeasureValue(MEASUREMENT_2);
-				if(captureTime_X > captureTime_Y)
-					mmeasureValue.Z = captureTime_X;
-				else
-					mmeasureValue.Z = captureTime_Y;
-
-				mmeasureValue.X1 = mCurrentMeasureValue.X1;
-				mmeasureValue.Y1 = mCurrentMeasureValue.Y1;
-				mmeasureValue.X2 = mCurrentMeasureValue.X2;
-				mmeasureValue.Y2 = mCurrentMeasureValue.Y2;
-				app_SetCurrentMeasureValue(MEASUREMENT_2);
-
-				mdata.mode = ZONLY;
-				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
-				screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
-				NOT_SHOW_HIS);
-				cycleMeasure = Z_OK;
-				getInput = GET_BUTTON;
-				XStatus = SENSORCHANGE;
-				YStatus = SENSORCHANGE;
-				process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME);
-//                DBG("C=2 MEASURE Z OK\n");
-				trigger_in2 = _OFF;
-				msensor.s0 = _OFF;
-				msensor.s1 = _OFF;
-			} else if ((CHECKZVALUE == cycleMeasure) && (_ON == trigger_in2)
-					&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) {
-				trigger_in2 = _OFF;
-				moutput.out1 = _OFF;
-				io_setOutput(moutput, ucRegCoilsBuf);
-				cycleMeasure = Z_NOT_OK;
-				getInput = GET_SENSOR;
-				mdata.mode = ZERROR1;
-				screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,
-				NOT_SHOW_HIS);
-//                DBG("C=2 MEASURE Z NOT OK\n");
-			}
-			if ((Z_OK == cycleMeasure || Z_NOT_OK == cycleMeasure)) {
-				cycleMeasure = WAITMEASUREX1Y1;
-//                DBG("C=2 cycleMeasure = WAITMEASUREX1Y1\n");
-			}
-//			if ((_ON == mbutton.set) && (_ON == moutput.out1)) {
-//				while(_ON == io_getButton().set);
-//				mledStatus.led1 = _ON;
-//				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-//				cycleMeasure = WAITMEASUREX1Y1;
-//				getInput = GET_SENSOR;
-//	//            DBG("SET Z\n");
-//				app_SetCalibValue(MEASUREMENT_2);
-//				app_GetCalibValue(MEASUREMENT_2);
-//			}
-		}
-		/********************************************## 6 ##*******************************************/
-		/*Robot di chuyển tới vị trí P5 Robot xuất tín hiệu cho X11*/
-		while (WAITMEASUREX1Y1 == cycleMeasure && 0 == GET_IN1) {
-			if(1 == GET_IN1 /*I0 = OFF -> stop measure X1Y1*/ && cycleMeasure == WAITMEASUREX1Y1 && moutput.out1 == _ON)
-			{
-				cycleMeasure = _ERROR; //stop
-				app_SetCalibValue(MEASUREMENT_2);
-				app_GetCalibValue(MEASUREMENT_2);
-			}
-			if (_ON == trigger_in2) //C=3
-					{
-				/*Start couter*/
-				trigger_in2 = _OFF;
-				cycleMeasure = MEASUREX1Y1;
-				getInput = GET_SENSOR;
-				cycleMeasureX = SEN_START;
-				cycleMeasureY = SEN_START;
-//                DBG("Start counter X1, Y1\n");
-			}
-		};
-		while ((MEASUREX1Y1 == cycleMeasure) && (0 == GET_IN1)) {
-			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
-				/*Stop couter X*/
-				mmeasureValue.X1 = captureTime_X;
-				msensor.s0 = _OFF;
-				cycleMeasureX = SEN_FINISH;
-				getInput = GET_SENSOR;
-				XStatus = SENSORCHANGE;
-//				DBG("X1 = SEN_FINISH\n");
-				// DBG("mmeasureValue.X1 = %d\n",mmeasureValue.X1);
-			}
-			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
-				/*Stop couter Y*/
-				mmeasureValue.Y1 = captureTime_Y;
-				msensor.s1 = _OFF;
-				cycleMeasureY = SEN_FINISH;
-				getInput = GET_SENSOR;
-				YStatus = SENSORCHANGE;
-//				DBG("Y1 = SEN_FINISH\n");
-				// DBG("mmeasureValue.Y1 = %d\n",mmeasureValue.Y1);
-			}
-			if ((SEN_FINISH == cycleMeasureX)
-					&& (SEN_FINISH == cycleMeasureY)) {
-				cycleMeasureX = SEN_STOP;
-				cycleMeasureY = SEN_STOP;
-				cycleMeasure = WAITMEASUREX2Y2;
-				getInput = GET_SENSOR;
-//                DBG("cycleMeasure = WAITMEASUREX2Y2\n");
-			}
-			//if(_ON == minput.in1) //C=4
-			//{
-			//    if(SEN_START == cycleMeasureX)
-			//    {
-			//        mmeasureValue.X1 = 0;
-			//    }
-			//    if(SEN_START == cycleMeasureY)
-			//    {
-			//        mmeasureValue.Y1 = 0;
-			//    }
-			//    cycleMeasureX = SEN_STOP;
-			//    cycleMeasureY = SEN_STOP;
-			//    cycleMeasure = WAITMEASUREX2Y2;
-			//    getInput = GET_SENSOR;
-			//    (void)time_Stop(TIMER_X);
-			//    (void)time_Stop(TIMER_Y);
-			//    DBG("MEASUREX1Y1 == cycleMeasure C=4\n");
-			//}
-		};
-		/********************************************## 7 ##*******************************************/
-		/*Robot di chuyển tới vị trí P10 Robot xuất tín hiệu cho X11*/
-		while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
-
-			if (_ON == trigger_in2) // C=4
-					{
-				if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
-				{
-					cycleMeasureX = SEN_ERROR;
-					cycleMeasureY = SEN_ERROR;
-					cycleMeasure = CYCLE_SEN_ERROR;
-				}
-				else
-				{
-					/*Start couter*/
-					trigger_in2 = _OFF;
-					cycleMeasure = MEASUREX2Y2;
-					getInput = GET_SENSOR;
-					cycleMeasureX = SEN_START;
-					cycleMeasureY = SEN_START;
-	//                DBG("cycleMeasure = WAITMEASUREX2Y2 C=4\n");
-				}
-			}
-		};
-		while ((MEASUREX2Y2 == cycleMeasure) && (0 == GET_IN1)) {
-			if ((SEN_START == cycleMeasureX) && (_ON == msensor.s0)) {
-				/*Stop couter X*/
-				mmeasureValue.X2 = captureTime_X;
-				msensor.s0 = _OFF;
-				cycleMeasureX = SEN_FINISH;
-				getInput = GET_SENSOR;
-				XStatus = SENSORCHANGE;
-//                DBG("X2 = SEN_FINISH\n");
-			}
-			if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
-				/*Stop couter X*/
-				mmeasureValue.Y2 = captureTime_Y;
-				msensor.s1 = _OFF;
-				cycleMeasureY = SEN_FINISH;
-				getInput = GET_SENSOR;
-				YStatus = SENSORCHANGE;
-//                DBG("Y2 = SEN_FINISH\n");
-			}
-			if ((SEN_FINISH == cycleMeasureX)
-					&& (SEN_FINISH == cycleMeasureY)) {
-				cycleMeasureX = SEN_STOP;
-				cycleMeasureY = SEN_STOP;
-				cycleMeasure = WAITRESETVALUE;
-				getInput = GET_BUTTON;
-//                DBG("WAITSETVALUE == cycleMeasure\n");
-			}
-			// if(_ON == minput.in1) //C=5
-			// {
-			//     if(SEN_START == cycleMeasureX)
-			//     {
-			//         mmeasureValue.X2 = 0;
-			//     }
-			//     if(SEN_START == cycleMeasureY)
-			//     {
-			//         mmeasureValue.Y2 = 0;
-			//     }
-			//     cycleMeasureX = SEN_STOP;
-			//     cycleMeasureY = SEN_STOP;
-			//     cycleMeasure = CALCULATORVALUE;
-			//     getInput = GET_SENSOR;
-			//     (void)time_Stop(TIMER_X);
-			//     (void)time_Stop(TIMER_Y);
-			// }
-		};
-		/*Robot di chuyển tới vị trí P18*/
-		if (_ON == mbutton.reset && cycleMeasure == WAITRESETVALUE) {
-			uint32_t _time = 0;
-			mbutton.reset = _OFF;
-			timer_Start(TIMER_CLEARCALIB, TIMERMAXVALUE); //start counting long press of RESET button
-			do {
-				/* code */
-			} while (_ON == io_getButton().reset);
-			_time = time_Stop(TIMER_CLEARCALIB);
-
-			if (_time >= 100000) /*if holding the RESET button longer than 10sec*/{
-				MeasureValue vl = { 0, 0, 0, 0, 0 };
-				FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
-				app_GetCalibValue(MEASUREMENT_2);
-				mledStatus.led1 = _OFF;
-				msetCalibValue_2 = CALIBRESET;
-				io_setLedStatus(mledStatus,ucRegCoilsBuf);
-				cycleMeasure = WAITSETVALUE;
-//				app_GotoMainScreen(CALIBRESET);
-
-			}
-		}
-		if ((WAITSETVALUE == cycleMeasure) && (_ON == mbutton.set)) {
-			while(_ON == io_getButton().set);
-			app_GetCalibValue(MEASUREMENT_2);
-			if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
-					&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
-					&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
-				app_SetCalibValue(MEASUREMENT_2);
-				app_GetCalibValue(MEASUREMENT_2);
+			if (msetCalibValue_1 == CALIBSET)
 				mledStatus.led1 = _ON;
-				msetCalibValue_2 = CALIBSET;
-				cycleMeasure = CALCULATORVALUE;
-				io_setLedStatus(mledStatus, ucRegCoilsBuf);
-			}
-			getInput = GET_SENSOR;
-			trigger_in2 = _OFF;
-//            DBG("cycleMeasure = CALCULATORVALUE\n");
-		}
-		/********************************************## 8 ##*******************************************/
-		if (((CALCULATORVALUE == cycleMeasure) || (WAITSETVALUE == cycleMeasure))
-				&& (_ON == trigger_in2)) // C=5
-				{
-			if(cycleMeasureX == SEN_START || cycleMeasureY == SEN_START) //measure X1Y1 Error
-			{
-				cycleMeasureX = SEN_ERROR;
-				cycleMeasureY = SEN_ERROR;
-				cycleMeasure = CYCLE_SEN_ERROR;
-			}
 			else
-			{
-				trigger_in2 = _OFF;
-				cycleMeasure = FINISH;
-				getInput = GET_BUTTON;
-				/*Calculator Value - Print to screen*/
-				app_SetCurrentMeasureValue(MEASUREMENT_2);
-				if (ZONLY == mdata.mode) {
-					mdata.mode = MEASUREALL;
-				} else if (ZERROR1 == mdata.mode) {
-					mdata.mode = ZERROR2;
-				}
-				app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
-				if(msetCalibValue_2 == CALIBRESET)
-					screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2,	NOT_SHOW_HIS);
-				process_SD_Card(mdata, MEASUREMENT_2_FILE_NAME); //TODO: check
-				//            DBG("cycleMeasure = FINISH C=5\n");
-			}
-		}
+				mledStatus.led1 = _OFF;
 
-		while(cycleMeasure == CYCLE_SEN_ERROR) //measure X1Y1 Error
-		{
-			mbutton = io_getButton();
-			moutput.out2 = _ON;
-			moutput.out3 = _ON;
+			if (msetCalibValue_2 == CALIBSET)
+				mledStatus.led2 = _ON;
+			else
+				mledStatus.led2 = _OFF;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
+			moutput.out2 = _OFF;
+			moutput.out3 = _OFF;
 			io_setOutput(moutput, ucRegCoilsBuf);
+			cycleMeasure = ERROR;
+		}
 
-			mledStatus.led1 = _ON;
-			mledStatus.led2 = _ON;
-			io_setLedStatus(mledStatus, ucRegCoilsBuf);
-			HAL_Delay(300);
-			mledStatus.led1 = _OFF;
-			mledStatus.led2 = _OFF;
-			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+	}
 
-			screen_DataMeasureType1(mdata, SEN_ERROR, MEASUREMENT_2, NOT_SHOW_HIS); //SHOW ... ...
-
-			if(mbutton.reset == _ON)
-			{
-				uint32_t _time = 0;
-				mbutton.reset = _OFF;
-				timer_Start(TIMER_CLEARCALIB, TIMERMAXVALUE); //start counting long press of RESET button
-				do {
-					/* hold button */
-				} while (_ON == io_getButton().reset);
-				_time = time_Stop(TIMER_CLEARCALIB);
-				if(_time > 20000) //press RESET button longer than 2sec
+	while (CALCULATORVALUE == cycleMeasure && (0 == GET_IN1)) {
+		minput = io_getInput();
+		if (_ON == minput.in2)  //C = 5
 				{
-					moutput.out2 = _OFF;
-					moutput.out3 = _OFF;
-					io_setOutput(moutput, ucRegCoilsBuf);
-					mledStatus.led1 = _OFF;
-					mledStatus.led2 = _OFF;
+			minput.in2 = _OFF;
+			cycleMeasure = FINISH;
+			DBG("cycleMeasure = FINISH");
+
+			if (ZONLY == mdata.mode) {
+				mdata.mode = MEASUREALL;
+			} else if (ZERROR1 == mdata.mode) {
+				mdata.mode = ZERROR2; // macro for LCD to print Z =... (Z cannot measure)
+			}
+			app_CalculatorValue(cycleMeasure, mdata.mode, MEASUREMENT_2);
+
+			if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_2)) {
+				write_SDCard(mdata, MEASUREMENT_2_FILE_NAME);
+			}
+			screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2, NOT_SHOW_HIS);
+			while (_ON == io_getInput().in2 && (0 == GET_IN1))
+				;
+		}
+	}
+
+	while (cycleMeasure == FINISH && (0 == GET_IN1)) {
+		//waiting for GET_IN1 = 1 to set calib
+	}
+
+	if (GET_IN1 == 1 /*end of cycle measurement */) {
+		moutput.out0 = _OFF;
+		moutput.out1 = _OFF;
+		moutput.out2 = _OFF;
+		moutput.out3 = _OFF;
+		moutput.out4 = _OFF;
+		moutput.out5 = _OFF;
+		moutput.out6 = _OFF;
+		moutput.out7 = _OFF;
+		io_setOutput(moutput, ucRegCoilsBuf);
+
+		if(cycleMeasure == WAITMEASUREX1Y1 && CALIBSET == msetCalibValue_2 ) // write to SD card if only measure Z
+			write_SDCard(mdata, MEASUREMENT_2_FILE_NAME);
+
+		if (cycleMeasure == FINISH && CALIBRESET == msetCalibValue_2) {
+			/*-----SET value -----*/
+			timer_Start(TIMER_CLEARCALIB, TIMERCLEARCALIB); //wait SET button in 6sec
+			do {
+				mbutton = io_getButton();
+			} while (TIME_FINISH != timer_Status()
+					&& mbutton.set != _ON);
+			if (_ON == mbutton.set) {
+				app_GetCalibValue(MEASUREMENT_2);
+				if ((0 == mcalibValue.X1) && (0 == mcalibValue.X2)
+						&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
+						&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
+					app_SetCalibValue(MEASUREMENT_2);
+					mledStatus.led2 = _ON;
+					msetCalibValue_2 = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-					LCD_Clear();
-					cycleMeasure = _ERROR;
+					DBG("cycleMeasure = SET_DONE\n");
+					app_CalculatorValue(FINISH, mdata.mode, MEASUREMENT_2);
+					mainScreenFlag = MEASUREMENT_2;
+					screen_DataMeasureType1(mdata, msetCalibValue_2, MEASUREMENT_2, NOT_SHOW_HIS);
 				}
 			}
-
 		}
-	} while (0 == GET_IN1);
-
-	app_TrigerOutputOFF();
-	moutput.out0 = _OFF;
-	moutput.out1 = _OFF;
-	moutput.out3 = _OFF;
-	moutput.out4 = _OFF;
-	moutput.out5 = _OFF;
-	moutput.out6 = _OFF;
-	moutput.out7 = _OFF;
-
-	if ((SENSORNOCHANGE == XStatus) || (SENSORNOCHANGE == YStatus)) {
-//		moutput.out0 = _ON;
-	} else {
-//		moutput.out0 = _OFF;
+		else
+		{
+			app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
+		}
 	}
-	io_setOutput(moutput,ucRegCoilsBuf);
-//	app_TrigerOutputON();
-	if ((NONE != mdata.mode) && (CALIBSET == msetCalibValue_2)) {
-		FLASH_WriteDataMeasure(&mdata, MEASUREMENT_2);
-	}
-	app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
+
 }
 
 static void app_ClearAllOutput(void) {
 	moutput.out0 = _OFF;
 	moutput.out1 = _OFF;
+	moutput.out2 = _OFF;
 	moutput.out3 = _OFF;
-	io_setOutput(moutput,ucRegCoilsBuf);
+	moutput.out4 = _OFF;
+	moutput.out5 = _OFF;
+	moutput.out6 = _OFF;
+	moutput.out7 = _OFF;
+	io_setOutput(moutput, ucRegCoilsBuf);
 }
 
-static void app_GetCurrentMeasureValue(uint8_t measurementIndex) {
-	mCurrentMeasureValue = FLASH_ReadDataCurrent(measurementIndex);//TODO: check if data in flash NULL
-	if(mCurrentMeasureValue.X1 == EMPTY && mCurrentMeasureValue.X2 == EMPTY && mCurrentMeasureValue.Y1 == EMPTY && mCurrentMeasureValue.Y2 == EMPTY && mCurrentMeasureValue.Z == EMPTY)
-	{
-		mCurrentMeasureValue.X1 = 0;
-		mCurrentMeasureValue.X2 = 0;
-		mCurrentMeasureValue.Y1 = 0;
-		mCurrentMeasureValue.Y2 = 0;
-		mCurrentMeasureValue.Z = 0;
-	}
-}
 
-static void app_SetCurrentMeasureValue(uint8_t measurementIndex) {
-	mCurrentMeasureValue.X1 = mmeasureValue.X1;
-	mCurrentMeasureValue.Y1 = mmeasureValue.Y1;
-	mCurrentMeasureValue.X2 = mmeasureValue.X2;
-	mCurrentMeasureValue.Y2 = mmeasureValue.Y2;
-	mCurrentMeasureValue.Z = mmeasureValue.Z;
-	FLASH_WriteDataCurrent(&mCurrentMeasureValue, measurementIndex);
-}
-
-static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
+void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 		uint8_t measurementIndex) {
 	double db_DetaTX1 = 0;
 	double db_DetaTY1 = 0;
@@ -2339,7 +1871,7 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 	double db_beta2 = 0;
 
 	VDRLZ_Input buffer;
-	FLASH_ReadVDRLZ(&buffer);
+	buffer = FLASH_ReadVDRLZ();
 
 	double db_DetaXSS1 = 0;
 	double db_DetaYSS1 = 0;
@@ -2359,19 +1891,24 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 
 	uint8_t temp = 0;
 	if (measurementIndex == 1) {
-		temp =  msetCalibValue_1; //TODO
+		temp = (uint8_t) msetCalibValue_1;
+		app_GetCalibValue(MEASUREMENT_1);
 	} else {
-		temp =  msetCalibValue_2;
+		temp = (uint8_t) msetCalibValue_2;
+		app_GetCalibValue(MEASUREMENT_2);
 	}
 	if (CALIBSET == temp) {
+		mdata.time = rtc_Now();
 //        DBG("**********************************************************\n")
 		/*calculator Z*/
 		if ((ZONLY == mode) || (MEASUREALL == mode)) {
-			db_DetaTZ = ((double) (mmeasureValue.Z - mcalibValue.Z)) * 100
+			db_DetaTZ = ((double) (mmeasureValue.Z - mcalibValue.Z)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
 			db_DetaZ = buffer.V * db_DetaTZ;
 			mdata.coordinates.Z = (int16_t) (db_DetaZ * 100.0);
-
+			char buf[100];
+			sprintf(buf,"mmeasureValue.Z =%ld mcalibValue.Z=%ld\n",mmeasureValue.Z,mcalibValue.Z);
+			DBG(buf);
 			if ((db_DetaZ > buffer.Z) || (db_DetaZ < (-buffer.Z))) {
 				moutput.out3 = _ON;
 			} else {
@@ -2381,19 +1918,36 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 
 		/*calculator X Y*/
 		if (FINISH == lcycleMeasures) {
-			db_DetaTX1 = ((double) (mmeasureValue.X1 - mcalibValue.X1)) * 100
+			char buf[100];
+			db_DetaTX1 = ((double) (mmeasureValue.X1 - mcalibValue.X1)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-			db_DetaTY1 = ((double) (mmeasureValue.Y1 - mcalibValue.Y1)) * 100
+			db_DetaTY1 = ((double) (mmeasureValue.Y1 - mcalibValue.Y1)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-			db_DetaTX2 = ((double) (mmeasureValue.X2 - mcalibValue.X2)) * 100
+			db_DetaTX2 = ((double) (mmeasureValue.X2 - mcalibValue.X2)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-			db_DetaTY2 = ((double) (mmeasureValue.Y2 - mcalibValue.Y2)) * 100
+			db_DetaTY2 = ((double) (mmeasureValue.Y2 - mcalibValue.Y2)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
+			sprintf(buf, "mmeasureValue.X1=%ld mcalibValue.X1=%ld\n",
+					mmeasureValue.X1, mcalibValue.X1);
+			DBG(buf);
+			sprintf(buf, "mmeasureValue.Y1=%ld mcalibValue.Y1=%ld\n",
+					mmeasureValue.Y1, mcalibValue.Y1);
+			DBG(buf);
+			sprintf(buf, "mmeasureValue.X2=%ld mcalibValue.X2=%ld\n",
+					mmeasureValue.X2, mcalibValue.X2);
+			DBG(buf);
+			sprintf(buf, "mmeasureValue.Y2=%ld mcalibValue.Y2=%ld\n",
+					mmeasureValue.Y2, mcalibValue.Y2);
+			DBG(buf);
 
 			db_anpha1 = (buffer.V * db_DetaTX1) / buffer.D;
 			db_beta1 = (buffer.V * db_DetaTY1) / buffer.D;
 			db_anpha2 = (buffer.V * db_DetaTX2) / buffer.D;
 			db_beta2 = (buffer.V * db_DetaTY2) / buffer.D;
+//            DBG("db_anpha1 = %lf\n",db_anpha1);
+//            DBG("db_beta1 = %lf\n",db_beta1);
+//            DBG("db_anpha2 = %lf\n",db_anpha2);
+//            DBG("db_beta2 = %lf\n",db_beta2);
 
 			db_DetaXSS1 = (2 * buffer.D) * sin(db_anpha1 / 2)
 					* cos(db_anpha1 / 2);
@@ -2401,6 +1955,10 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 					* cos(db_beta1 / 2);
 			db_DetaXRB1 = db_DetaXSS1 * cos(3.142 / 4);
 			db_DetaYRB1 = db_DetaYSS1 * cos(3.142 / 4);
+//            DBG("db_DetaXSS1 = %lf\n",db_DetaXSS1);
+//            DBG("db_DetaYSS1 = %lf\n",db_DetaYSS1);
+//            DBG("db_DetaXRB1 = %lf\n",db_DetaXRB1);
+//            DBG("db_DetaYRB1 = %lf\n",db_DetaYRB1);
 
 			db_DetaXSS2 = (2 * buffer.D) * sin(db_anpha2 / 2)
 					* cos(db_anpha2 / 2);
@@ -2408,11 +1966,17 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 					* cos(db_beta2 / 2);
 			db_DetaXRB2 = db_DetaXSS2 * cos(3.142 / 4);
 			db_DetaYRB2 = db_DetaYSS2 * cos(3.142 / 4);
+//            DBG("db_DetaXSS2 = %lf\n",db_DetaXSS2);
+//            DBG("db_DetaYSS2 = %lf\n",db_DetaYSS2);
+//            DBG("db_DetaXRB2 = %lf\n",db_DetaXRB2);
+//            DBG("db_DetaYRB2 = %lf\n",db_DetaYRB2);
 
 			db_r1 = sqrt(
 					(db_DetaYSS1 * db_DetaYSS1) + (db_DetaXSS1 * db_DetaXSS1));
 			db_r2 = sqrt(
 					(db_DetaYSS2 * db_DetaYSS2) + (db_DetaXSS2 * db_DetaXSS2));
+//            DBG("db_r1 = %lf\n",db_r1);
+//            DBG("db_r2 = %lf\n",db_r2);
 
 			db_LXSS = (atan((db_DetaXSS2 - db_DetaXSS1) / buffer.L) * 180)
 					/ 3.142;
@@ -2422,6 +1986,10 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 					/ 3.142;
 			db_LYRB = (atan((db_DetaYRB2 - db_DetaYRB1) / buffer.L) * 180)
 					/ 3.142;
+//            DBG("db_LXSS = %lf\n",db_LXSS);
+//            DBG("db_LYSS = %lf\n",db_LYSS);
+//            DBG("db_LXRB = %lf\n",db_LXRB);
+//            DBG("db_LYRB = %lf\n",db_LYRB);
 
 			mdata.coordinates.X = (int16_t) (db_DetaXRB2 * 100.0);
 			mdata.coordinates.Y = (int16_t) (db_DetaYRB2 * 100.0);
@@ -2429,14 +1997,20 @@ static void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 			mdata.coordinates.R = (int16_t) (db_r2 * 100.0);
 			mdata.coordinates.aX = (int16_t) (db_LXRB * 10.0);
 			mdata.coordinates.aY = (int16_t) (db_LYRB * 10.0);
-
+//            DBG("X (db_DetaXRB2) = %lf\n",db_DetaXRB2);
+//            DBG("Y (db_DetaYRB2)= %lf\n",db_DetaYRB2);
+//            DBG("R (db_r2)= %lf\n",db_r2);
+//            DBG("A (db_LXRB) = %lf\n",db_LXRB);
+//            DBG("B (db_LYRB)= %lf\n",db_LYRB);
+//            DBG("X1 (db_DetaXRB1)= %lf\n",db_DetaXRB1);
+//            DBG("Y1 (db_DetaYRB1)= %lf\n",db_DetaYRB1);
 			if (db_r2 > buffer.R) {
 				moutput.out2 = _ON;
 			} else {
 				moutput.out2 = _OFF;
 			}
 		}
-		io_setOutput(moutput,ucRegCoilsBuf);
+		io_setOutput(moutput, ucRegCoilsBuf);
 	}
 }
 
@@ -2447,31 +2021,31 @@ static void app_SetCalibValue(uint8_t measurementIndex) {
 	mcalibValue.Y2 = mmeasureValue.Y2;
 	mcalibValue.Z = mmeasureValue.Z;
 	FLASH_WriteDataCalib(&mcalibValue, measurementIndex);
+//    DBG("mcalibValue.X1 = %d\n",mcalibValue.X1);
+//    DBG("mcalibValue.Y1 = %d\n",mcalibValue.Y1);
+//    DBG("mcalibValue.X2 = %d\n",mcalibValue.X2);
+//    DBG("mcalibValue.Y2 = %d\n",mcalibValue.Y2);
+//    DBG("mcalibValue.Z = %d\n",mcalibValue.Z);
 }
 
 static void app_GetCalibValue(uint8_t measurementIndex) {
 	mcalibValue = FLASH_ReadDataCalib(measurementIndex);
-	if(mcalibValue.X1 == EMPTY && mcalibValue.X2 == EMPTY && mcalibValue.Y1 == EMPTY && mcalibValue.Y2 == EMPTY && mcalibValue.Z == EMPTY)
-	{
+	if (mcalibValue.X1 == EMPTY && mcalibValue.X2 == EMPTY
+			&& mcalibValue.Y1 == EMPTY && mcalibValue.Y2 == EMPTY
+			&& mcalibValue.Z == EMPTY) {
 		mcalibValue.X1 = 0;
 		mcalibValue.X2 = 0;
 		mcalibValue.Y1 = 0;
 		mcalibValue.Y2 = 0;
 		mcalibValue.Z = 0;
 	}
+//    DBG("mcalibValue.X1 = %d\n",mcalibValue.X1);
+//    DBG("mcalibValue.Y1 = %d\n",mcalibValue.Y1);
+//    DBG("mcalibValue.X2 = %d\n",mcalibValue.X2);
+//    DBG("mcalibValue.Y2 = %d\n",mcalibValue.Y2);
+//    DBG("mcalibValue.Z = %d\n",mcalibValue.Z);
 }
 
-static void app_TrigerOutputOFF(void) {
-	moutput.out4 = _OFF;
-	io_setOutput(moutput,ucRegCoilsBuf);
-	HAL_Delay(100);
-}
-
-static void app_TrigerOutputON(void) {
-	HAL_Delay(100);
-	moutput.out4 = _ON;
-	io_setOutput(moutput,ucRegCoilsBuf);
-}
 
 static optionScreen_e_t app_optionMenu(void) {
 	optionScreen_e_t optionIndex = measurement1Setting;
@@ -2527,9 +2101,11 @@ static optionScreen_e_t app_optionMenu(void) {
 static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	switch (optionMenu) {
 	case measurement1Setting:
+
 		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 		break;
 	case measurement2Setting:
+
 		app_GotoMainScreen(msetCalibValue_2, MEASUREMENT_2);
 		break;
 	case measurement1HisList:
@@ -2563,57 +2139,48 @@ static void app_ShowIP(void) {
 			exit = 1;
 		}
 	} while (exit == 0);
+
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 
 static void app_HisValue(uint8_t measurementIndex) {
-	uint16_t index = FLASH_ReadCurrentIndex(measurementIndex) - 1; //minus 1 to get the newest data;
+	uint8_t index = 0;
 	uint8_t exit = 0;
 	dataMeasure ldata;
-
+	char fileName[17];
+//	uint8_t u8_Led3 = mledStatus.led3;
+	if(measurementIndex == MEASUREMENT_1)
+	{
+		strcpy(fileName, MEASUREMENT_1_FILE_NAME);
+	}
+	else
+	{
+		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
+	}
 	LCD_Clear();
-	ldata = FLASH_ReadDataMeasure(measurementIndex, index);
+	ldata = read_SDCard(fileName, index);
 	screen_DataMeasureType1(ldata, CALIBSET, measurementIndex, SHOW_HIS);
 	do {
 		mbutton = io_getButton();
-		if (TIME_RUN != timer_Status(TIMER_CLEARSENSOR)) {
-			timer_Start(TIMER_CLEARSENSOR, 10000);
-			mledStatus.led3 ^= 0x01;
-			io_setLedStatus(mledStatus, ucRegCoilsBuf);
-		}
 		if (_ON == mbutton.next) {
 			while (_ON == io_getButton().next)
 				;
-			if (index == (FLASH_ReadCurrentIndex(measurementIndex) -1)) {
-				//reaches the newest data record
-			} else {
-				index++;
-			}
-
+			index--;
 			if (index > 9)
 				index = 0;
 
-			ldata = FLASH_ReadDataMeasure(measurementIndex, index);
+			ldata = read_SDCard(fileName, index);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
 			SHOW_HIS);
 		}
 		if (_ON == mbutton.prev) {
 			while (_ON == io_getButton().prev)
 				;
-
-			if (index == 0) {
+			index++;
+			if (index > 9)
 				index = 9;
-			} else {
-				index--;
-			}
 
-			if (index == (FLASH_ReadCurrentIndex(measurementIndex)-1)) {
-				//reaches the oldest data record
-				index++; //keep the value of index
-				index %= 10; //this calculation is use in cases where the index equals 10 because this index is used for history index range of 0->9 (10 nearest times data)
-			}
-
-			ldata = FLASH_ReadDataMeasure(measurementIndex, index);
+			ldata = read_SDCard(fileName, index);
 			screen_DataMeasureType1(ldata, CALIBSET, measurementIndex,
 			SHOW_HIS);
 		}
@@ -2622,7 +2189,6 @@ static void app_HisValue(uint8_t measurementIndex) {
 				;
 			uint8_t tempExit = 0;
 			do {
-
 				mbutton = io_getButton();
 				if (mbutton.next == _ON) {
 					while (_ON == io_getButton().next)
@@ -2658,73 +2224,63 @@ static void app_HisValue(uint8_t measurementIndex) {
 			exit = 1;
 		}
 	} while (exit == 0);
-	time_Stop(TIMER_CLEARSENSOR);
-
-	if (exit)
-		app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
+	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1); // main screen
 }
 
 static void app_Init(void) {
 	LCD_Init();
-//	W5500_init();
+	W5500_init(); //if this line error -> check power of ethernet
 	LCD_Clear();
 
-
-	/*write index to flash*/
-	uint8_t index = (uint8_t) FLASH_ReadCurrentIndex(MEASUREMENT_1);
-	if (index > 9) {
-		index = 0; // this value range form 0 to 9
-		FLASH_WriteCurrentIndex(index, MEASUREMENT_1);
+	VDRLZ_Input temp;
+	temp = FLASH_ReadVDRLZ();
+	if(temp.D == 0xFFFFFFFF && temp.L == 0xFFFFFFFF && isnanf(temp.R) && temp.V == 0xFFFFFFFF && isnanf(temp.Z))
+	{
+		temp.V = 20;
+		temp.D = 50;
+		temp.R = 1.2;
+		temp.L = 15;
+		temp.Z = 1.2;
+		FLASH_WriteVDRLZ(&temp);
 	}
-	index = (uint8_t) FLASH_ReadCurrentIndex(MEASUREMENT_2);
-	if (index > 9) {
-		index = 0; // this value range form 0 to 9
-		FLASH_WriteCurrentIndex(index, MEASUREMENT_2);
-	}
-
-	/*write VDLRZ to flash*/
-	VDRLZ_Input temp = {20.0,20.0,1.2,20.0,1.2};
-	FLASH_WriteVDRLZ(temp);
 
 	app_GetCalibValue(MEASUREMENT_1);
-	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0)
-			&& (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0)) {
-		mledStatus.led3 = _OFF;
+	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0)
+			&& (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0)
+			&& (mcalibValue.Z == 0)) {
+		mledStatus.led1 = _OFF;
 		msetCalibValue_1 = CALIBRESET;
 	} else {
-		mledStatus.led3 = _ON;
+		mledStatus.led1 = _ON;
 		msetCalibValue_1 = CALIBSET;
 	}
-#if 0
+
 	app_GetCalibValue(MEASUREMENT_2);
     if((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0))
     {
-        mledStatus.led3 = _OFF;
+        mledStatus.led2 = _OFF;
         msetCalibValue_2 = CALIBRESET;
     }
     else
     {
-        mledStatus.led3 = _ON;
+        mledStatus.led2 = _ON;
         msetCalibValue_2 = CALIBSET;
     }
-#endif
 
-    io_setLedStatus(mledStatus, ucRegCoilsBuf);
-//	app_TrigerOutputON(); //TODO: xem set
+	io_setLedStatus(mledStatus, ucRegCoilsBuf);
+
 	app_GotoMainScreen(msetCalibValue_1, MEASUREMENT_1);
 }
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
-	uint16_t index;
-	dataMeasure data;
-
-	index = FLASH_ReadCurrentIndex(measurementIndex);
-	if (index == 0)
-		index = 9;
-	else
-		index--;
-	data = FLASH_ReadDataMeasure(measurementIndex, index);
-	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
+	uint8_t index = 0;
+	volatile dataMeasure data = {0};
 	uint8_t exit = 0;
+
+	mainScreenFlag = measurementIndex; //use for reset calib
+
+	data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
+	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
+
 	do {
 		mbutton = io_getButton();
 		minput = io_getInput();
@@ -2748,16 +2304,241 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 			break;
 		}
 
-	} while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1 && _OFF == mbutton.reset);
+	} while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1
+			&& _OFF == mbutton.reset);
 }
 
-static void updateMBRegister(void)
+CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
+
+	while ((STOP == cycleMeasure) && (0 == GET_INPUT(measurementIndex)))
+	{
+		app_ClearAllOutput();
+		minput.in0 = _OFF;
+		cycleMeasure = CLEARSENSOR;
+		timer_Start(TIMERCLEARSENSOR);
+		moutput.out4 = _ON; // O7 ON start clear sensor
+		io_setOutput(moutput, ucRegCoilsBuf);
+		DBG("Clearing sensor \r\n");
+
+	}
+	/********************************************## 2 ##*******************************************/
+	/********************************************## 3 ##*******************************************/
+	/*Waiting clear Sensor*/
+	while (CLEARSENSOR == cycleMeasure) {
+		if (TIME_FINISH == timer_Status()) {
+			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
+				moutput.out0 = _ON;
+				moutput.out4 = _OFF; //turn off O7
+				io_setOutput(moutput, ucRegCoilsBuf);
+
+				cycleMeasure = WAITMEASUREZ;
+				DBG("Check done - SENSOR OK\r\n");
+
+			} else {
+				moutput.out0 = _OFF;
+				moutput.out4 = _OFF; //turn off O7
+				io_setOutput(moutput, ucRegCoilsBuf);
+				cycleMeasure = _ERROR;
+				DBG("Check done - SENSOR [NOT] OK\r\n");
+			}
+		}
+
+	}
+	return cycleMeasure;
+}
+
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex) //TODO: using falling interrupt in2
 {
-	uint16_t tempInput[REG_INPUT_NREGS] = {msensor.s0,msensor.s1,GET_IN0,GET_IN1,trigger_in2,GET_IN3,GET_IN4,GET_IN5,GET_IN6,GET_IN7};
-	memcpy(usRegInputBuf,tempInput,sizeof(usRegInputBuf));
-	//TODO: checking array elements
-//	modbus_tcps(HTTP_SOCKET, MBTCP_PORT);
+	setCalibValue mcalibValue;
+	char fileName[17];
+
+	if(measurementIndex == MEASUREMENT_1)
+	{
+		mcalibValue = msetCalibValue_1;
+		strcpy(fileName, MEASUREMENT_1_FILE_NAME);
+	}
+	else
+	{
+		mcalibValue = msetCalibValue_2;
+		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
+	}
+	while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
+		minput = io_getInput();
+		if (_ON == minput.in2) //C=1
+				{
+			minput.in2 = _OFF;
+//			msensor.s0 = _OFF;
+//			msensor.s1 = _OFF;
+			cycleMeasure = MEASUREZ;
+			DBG("Measure Z start\r\n");
+		}
+//		minput.in2 = _OFF;
+	};
+	while ((MEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
+
+		if ((_ON == minput.in2) && (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
+				{
+			moutput.out1 = _ON;
+			io_setOutput(moutput, ucRegCoilsBuf);
+			if(captureTime_X >= captureTime_Y)
+				mmeasureValue.Z = captureTime_X;
+			else
+				mmeasureValue.Z = captureTime_Y;
+
+			mdata.mode = ZONLY;
+			app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
+			screen_DataMeasureType1(mdata, mcalibValue, measurementIndex,
+							NOT_SHOW_HIS);
+
+			minput.in2 = _OFF;
+			msensor.s0 = _OFF;
+			msensor.s1 = _OFF;
+			cycleMeasure = Z_OK;
+			DBG("(C=2) Measure Z - OK\r\n");
+
+		} else if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2)
+				&& ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
+				{
+			minput.in2 = _OFF;
+			moutput.out1 = _OFF;
+			io_setOutput(moutput, ucRegCoilsBuf);
+			time_Stop();
+			cycleMeasure = Z_NOT_OK;
+			mdata.mode = ZERROR1;
+			DBG("(C=2) Measure Z - [NOT] OK\r\n");
+			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+				;
+		}
+
+		if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure))
+				&& (_OFF == minput.in2)) {
+			cycleMeasure = WAITMEASUREX1Y1;
+			DBG("(C=2 cycleMeasure = WAITMEASUREX1Y1\r\n");
+
+		}
+	};
+	return cycleMeasure;
+}
+
+CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
+	CycleMeasureSensor cycleMeasureX = SEN_STOP;
+	CycleMeasureSensor cycleMeasureY = SEN_STOP;
+	while ((WAITMEASUREX1Y1 == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
+		minput = io_getInput();
+		if (_ON == minput.in2) //C=3
+				{
+			minput.in2 = _OFF;
+			cycleMeasure = MEASUREX1Y1;
+			timer_Start(TIMER_X, TIMERMAXVALUE);
+			timer_Start(TIMER_Y, TIMERMAXVALUE);
+
+			cycleMeasureX = SEN_START;
+			cycleMeasureY = SEN_START;
+
+			DBG("Start counter X1, Y1\n");
+			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+				;
+		}
+	}
+
+	while (cycleMeasure == MEASUREX1Y1 && (0 == GET_INPUT(measurementIndex))) {
+		msensor = io_getSensor();
+		if (SEN_START == cycleMeasureX && (_ON == msensor.s0)) {
+			mmeasureValue.X1 = time_Stop(TIMER_X); //Stop counter X
+			msensor.s0 = _OFF;
+			cycleMeasureX = SEN_FINISH;
+			DBG("X1 = SEN_FINISH\n");
+			while (io_getSensor().s0 == _ON && (0 == GET_INPUT(measurementIndex)))
+				;
+		}
+		if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
+			mmeasureValue.Y1 = time_Stop(TIMER_Y); //Stop counter Y
+			msensor.s1 = _OFF;
+			cycleMeasureY = SEN_FINISH;
+			DBG("Y1 = SEN_FINISH\n");
+			while (io_getSensor().s1 == _ON && (0 == GET_INPUT(measurementIndex)))
+				;
+		}
+		if ((SEN_FINISH == cycleMeasureX) && (SEN_FINISH == cycleMeasureY)) {
+			cycleMeasure = WAITMEASUREX2Y2;
+			DBG("cycleMeasure = WAITMEASUREX2Y2\n");
+		}
+		if (io_getInput().in2 == _ON && cycleMeasure != WAITMEASUREX2Y2) {
+			cycleMeasure = _ERROR_XY;
+		}
+	}
+	return cycleMeasure;
+}
+
+CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
+	CycleMeasureSensor cycleMeasureX = SEN_STOP;
+	CycleMeasureSensor cycleMeasureY = SEN_STOP;
+	while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
+		minput = io_getInput();
+		if (_ON == minput.in2) //C=4
+				{
+			minput.in2 = _OFF;
+			cycleMeasure = MEASUREX2Y2;
+			timer_Start(TIMER_X, TIMERMAXVALUE);
+			timer_Start(TIMER_Y, TIMERMAXVALUE);
+
+			cycleMeasureX = SEN_START;
+			cycleMeasureY = SEN_START;
+
+			DBG("Start counter X2, Y2\n");
+
+			while (_ON == io_getInput().in2 && (0 == GET_INPUT(measurementIndex)))
+				;
+		}
+	}
+
+	while (cycleMeasure == MEASUREX2Y2 && (0 == GET_INPUT(measurementIndex))) {
+		msensor = io_getSensor();
+		if (SEN_START == cycleMeasureX && (_ON == msensor.s0)) {
+			mmeasureValue.X2 = time_Stop(TIMER_X); //Stop counter X
+			msensor.s0 = _OFF;
+			cycleMeasureX = SEN_FINISH;
+			DBG("X2 = SEN_FINISH\n");
+
+			while (io_getSensor().s0 == _ON && (0 == GET_INPUT(measurementIndex)))
+				;
+		}
+		if ((SEN_START == cycleMeasureY) && (_ON == msensor.s1)) {
+			mmeasureValue.Y2 = time_Stop(TIMER_Y); //Stop counter Y
+			msensor.s1 = _OFF;
+			cycleMeasureY = SEN_FINISH;
+			DBG("Y2 = SEN_FINISH\n");
+
+			while (io_getSensor().s1 == _ON && (0 == GET_INPUT(measurementIndex)))
+				;
+		}
+		if ((SEN_FINISH == cycleMeasureX) && (SEN_FINISH == cycleMeasureY)) {
+			cycleMeasure = CALCULATORVALUE;
+			DBG("cycleMeasure = CALCULATORVALUE\n");
+		}
+		if (io_getInput().in2 == _ON && cycleMeasure != CALCULATORVALUE) {
+			cycleMeasure = _ERROR_XY;
+		}
+	}
+	return cycleMeasure;
+}
+
+static void updateMBRegister(void) {
+	uint16_t tempInput[REG_INPUT_NREGS] = { GET_SENSOR0, GET_SENSOR1, GET_IN0,
+			GET_IN1, GET_IN2, GET_IN3, GET_IN4, GET_IN5, GET_IN6, GET_IN7 };
+	memcpy(usRegInputBuf, tempInput, sizeof(usRegInputBuf));
+
+//	modbus_tcps(HTTP_SOCKET, MBTCP_PORT); //instead of using eMBPoll()
 	eMBPoll();
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == IN2_Pin)
+	{
+		minput.in2 = _ON;
+		timer_Start(TIMERMAXVALUE);
+	}
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim)
@@ -2765,28 +2546,15 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef* htim)
 	if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 	{
 		msensor.s0 = _ON;
-		captureTime_X =	time_Stop(TIMER_X);
+		captureTime_X =	time_getCount();
 	}
 	if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2)
 	{
 		msensor.s1 = _ON;
-		captureTime_Y =	time_Stop(TIMER_Y);
+		captureTime_Y =	time_getCount();
 	}
 
 }
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if(GPIO_Pin == IN2_Pin)
-	{
-		trigger_in2 = _ON;
-		timer_Start(TIMER_X, TIMERMAXVALUE);
-		timer_Start(TIMER_Y, TIMERMAXVALUE);
-//		while(HAL_GPIO_ReadPin(GPIOD, IN2_Pin) == 0);
-		counter_2 ++;
-	}
-}
-
 /* USER CODE END 4 */
 
 /**

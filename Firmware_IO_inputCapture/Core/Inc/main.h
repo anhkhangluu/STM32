@@ -46,7 +46,13 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
+#define CDC_DEBUG
+#ifdef CDC_DEBUG
+#include "string.h"
+#define DBG(x) CDC_Transmit_FS(x,strlen(x))
+#else
+#define DBG(x)
+#endif //CDC_DEBUG
 /* USER CODE END EM */
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
@@ -81,10 +87,10 @@ void Error_Handler(void);
 #define OUT3_GPIO_Port GPIOE
 #define OUT4_Pin GPIO_PIN_8
 #define OUT4_GPIO_Port GPIOE
-#define SEN_X_Pin GPIO_PIN_9
-#define SEN_X_GPIO_Port GPIOE
-#define SEN_Y_Pin GPIO_PIN_11
-#define SEN_Y_GPIO_Port GPIOE
+#define SENSOR_X_Pin GPIO_PIN_9
+#define SENSOR_X_GPIO_Port GPIOE
+#define SENSOR_Y_Pin GPIO_PIN_11
+#define SENSOR_Y_GPIO_Port GPIOE
 #define OUT5_Pin GPIO_PIN_12
 #define OUT5_GPIO_Port GPIOE
 #define OUT6_Pin GPIO_PIN_13
@@ -144,6 +150,12 @@ extern SPI_HandleTypeDef 	hspi2;
 
 extern RTC_HandleTypeDef 	hrtc;
 extern TIM_HandleTypeDef 	htim6;
+
+#include "structer.h"
+extern MeasureValue mcalibValue;
+void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,uint8_t measurementIndex);
+extern MeasureValue mmeasureValue;
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

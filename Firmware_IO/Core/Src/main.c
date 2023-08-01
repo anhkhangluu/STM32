@@ -121,7 +121,6 @@ volatile static output moutput;
 volatile static ledStatus mledStatus;
 MeasureValue mcalibValue;
 MeasureValue mmeasureValue;
-static MeasureValue mCurrentMeasureValue;
 
 volatile static setCalibValue msetCalibValue_1; //for measurement1
 volatile static setCalibValue msetCalibValue_2; //for measurement2
@@ -275,7 +274,7 @@ int main(void)
 #endif
 
 
-#if 1
+#if 0
 	unitTestZ();
 #endif
 	app_Init();
@@ -567,7 +566,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 47;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 99;
+  htim1.Init.Period = 9;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -1131,7 +1130,7 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 	if (htim == &htim1) {
-		register uint8_t i;
+		uint8_t i;
 		for (i = 0; i < MAX_TIME; i++) {
 			if (TIME_RUN == mtimer[i].status) {
 				mtimer[i].inc += 1;
@@ -1141,7 +1140,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 				}
 			}
 		}
-		updateMBRegister(); //update modbus register every 100us
+//		updateMBRegister(); //update modbus register every 100us
 	}
 }
 static void app_SettingVDLRZ(void) {
@@ -1559,13 +1558,9 @@ static void app_Measurement_1(void) {
 	if (cycleMeasure == _ERROR) {
 		DBG("cycleMeasure == _ERROR");
 	}
-	HAL_Delay(1);
 	cycleMeasure = meas_measurementZ(cycleMeasure, MEASUREMENT_1);
-	HAL_Delay(1);
 	cycleMeasure = meas_measurementX1Y1(cycleMeasure, MEASUREMENT_1);
-	HAL_Delay(1);
 	cycleMeasure = meas_measurementX2Y2(cycleMeasure, MEASUREMENT_1);
-	HAL_Delay(1);
 
 	while (cycleMeasure == _ERROR_XY) {
 		DBG("Sensor X/Y Error");
@@ -1706,13 +1701,10 @@ static void app_Measurement_2(void) {
 	if (cycleMeasure == _ERROR) {
 		DBG("cycleMeasure == _ERROR");
 	}
-	HAL_Delay(1);
+	
 	cycleMeasure = meas_measurementZ(cycleMeasure, MEASUREMENT_2);
-	HAL_Delay(1);
 	cycleMeasure = meas_measurementX1Y1(cycleMeasure, MEASUREMENT_2);
-	HAL_Delay(1);
 	cycleMeasure = meas_measurementX2Y2(cycleMeasure, MEASUREMENT_2);
-	HAL_Delay(1);
 
 	while (cycleMeasure == _ERROR_XY) {
 		DBG("Sensor X/Y Error");
@@ -1890,14 +1882,13 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 //        DBG("**********************************************************\n")
 		/*calculator Z*/
 		if ((ZONLY == mode) || (MEASUREALL == mode)) {
-			db_DetaTZ = ((double) (mmeasureValue.Z - mcalibValue.Z)) * 100
+			db_DetaTZ = ((double) (mmeasureValue.Z - mcalibValue.Z)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-//            DBG("db_DetaTZ = %lf\n",db_DetaTZ);
 			db_DetaZ = buffer.V * db_DetaTZ;
-//            DBG("db_DetaZ = %lf\n",db_DetaZ);
 			mdata.coordinates.Z = (int16_t) (db_DetaZ * 100.0);
-//            DBG("Z (db_DetaZ)= %lf\n",db_DetaZ);
-
+//			char buf[100];
+//			sprintf(buf,"mmeasureValue.Z =%ld mcalibValue.Z=%ld\n",mmeasureValue.Z,mcalibValue.Z);
+			DBG(buf);
 			if ((db_DetaZ > buffer.Z) || (db_DetaZ < (-buffer.Z))) {
 				moutput.out3 = _ON;
 			} else {
@@ -1907,18 +1898,27 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 
 		/*calculator X Y*/
 		if (FINISH == lcycleMeasures) {
-			db_DetaTX1 = ((double) (mmeasureValue.X1 - mcalibValue.X1)) * 100
+//			char buf[100];
+			db_DetaTX1 = ((double) (mmeasureValue.X1 - mcalibValue.X1)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-			db_DetaTY1 = ((double) (mmeasureValue.Y1 - mcalibValue.Y1)) * 100
+			db_DetaTY1 = ((double) (mmeasureValue.Y1 - mcalibValue.Y1)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-			db_DetaTX2 = ((double) (mmeasureValue.X2 - mcalibValue.X2)) * 100
+			db_DetaTX2 = ((double) (mmeasureValue.X2 - mcalibValue.X2)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-			db_DetaTY2 = ((double) (mmeasureValue.Y2 - mcalibValue.Y2)) * 100
+			db_DetaTY2 = ((double) (mmeasureValue.Y2 - mcalibValue.Y2)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-//            DBG("db_DetaTX1 = %lf\n",db_DetaTX1);
-//            DBG("db_DetaTY1 = %lf\n",db_DetaTY1);
-//            DBG("db_DetaTX2 = %lf\n",db_DetaTX2);
-//            DBG("db_DetaTY2 = %lf\n",db_DetaTY2);
+//			sprintf(buf, "mmeasureValue.X1=%ld mcalibValue.X1=%ld\n",
+//					mmeasureValue.X1, mcalibValue.X1);
+//			DBG(buf);
+//			sprintf(buf, "mmeasureValue.Y1=%ld mcalibValue.Y1=%ld\n",
+//					mmeasureValue.Y1, mcalibValue.Y1);
+//			DBG(buf);
+//			sprintf(buf, "mmeasureValue.X2=%ld mcalibValue.X2=%ld\n",
+//					mmeasureValue.X2, mcalibValue.X2);
+//			DBG(buf);
+//			sprintf(buf, "mmeasureValue.Y2=%ld mcalibValue.Y2=%ld\n",
+//					mmeasureValue.Y2, mcalibValue.Y2);
+//			DBG(buf);
 
 			db_anpha1 = (buffer.V * db_DetaTX1) / buffer.D;
 			db_beta1 = (buffer.V * db_DetaTY1) / buffer.D;
@@ -2358,10 +2358,10 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 		}
 		minput.in2 = _OFF;
 	};
-
 	while ((MEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
 		msensor = io_getSensor();
 		minput = io_getInput();
+
 		if ((_ON == minput.in2) && (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
 				{
 			moutput.out1 = _ON;

@@ -48,11 +48,13 @@ extern "C" {
 /* USER CODE BEGIN EM */
 //#define CDC_DEBUG
 #ifdef CDC_DEBUG
-#define DBG(x) CDC_Transmit_FS(x,sizeof(x))
+#include "string.h"
+#define DBG(x) CDC_Transmit_FS(x,strlen(x))
 #else
 #define DBG(x)
 #endif //CDC_DEBUG
 /* USER CODE END EM */
+
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
