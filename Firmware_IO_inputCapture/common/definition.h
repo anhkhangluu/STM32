@@ -13,18 +13,12 @@
 #define _ON                         1U
 #define _OFF                        0U
 
-#define TIMER_X                     0U
-#define TIMER_Y                     1U
-#define TIMER_Z                     0U
-#define TIMER_CLEARSENSOR           2U
-//#define TIMER_ERRORSENSOR			3U
-#define TIMER_CLEARCALIB            2U
-#define TIMERCLEARSENSOR            2000U * 10U *10
-#define TIMERERRORSENSOR			5000U * 10U *10
-#define TIMERSETCALIB	            6000U * 10U *10
-#define TIMERY0ON                   1500U * 10U *10
-#define TIMEWAITX11                 200U * 10U *10
-#define TIMERMAXVALUE               0xFFFFFFFFU
+#define TIMER_CLEARCALIB
+
+#define TIMER_ERRORSENSOR			5 * 1000000 //5s
+#define TIMER_RESET_ERRORXY			2 * 1000000 //2s
+#define TIMER_SETCALIB	            6 * 1000000 //6s
+#define TIMER_RESET_CALIB		   10 * 1000000 //10s
 
 #define DEBUG 1
 #if(DEBUG == 1)

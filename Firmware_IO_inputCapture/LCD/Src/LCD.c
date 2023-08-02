@@ -61,8 +61,8 @@ static LCD_Options_t LCD_Opts;
 //############################################################################################
 void  LCD_Delay_us(uint16_t  us)
 {
-	__HAL_TIM_SET_COUNTER(&htim6,0);
-	while(__HAL_TIM_GET_COUNTER(&htim6)<us);
+	uint16_t count = __HAL_TIM_GET_COUNTER(&htim1);
+	while(__HAL_TIM_GET_COUNTER(&htim1)<(count+us));
 }
 //############################################################################################
 void  LCD_Delay_ms(uint8_t  ms)

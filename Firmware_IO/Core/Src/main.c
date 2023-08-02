@@ -274,7 +274,7 @@ int main(void)
 #endif
 
 
-#if 0
+#if 1
 	unitTestZ();
 #endif
 	app_Init();
@@ -1140,6 +1140,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 				}
 			}
 		}
+
 //		updateMBRegister(); //update modbus register every 100us
 	}
 }
@@ -1872,7 +1873,7 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 	uint8_t temp = 0;
 	if (measurementIndex == 1) {
 		temp = (uint8_t) msetCalibValue_1;
-		app_GetCalibValue(MEASUREMENT_1);
+//		app_GetCalibValue(MEASUREMENT_1);
 	} else {
 		temp = (uint8_t) msetCalibValue_2;
 		app_GetCalibValue(MEASUREMENT_2);
@@ -2288,6 +2289,7 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 			&& _OFF == mbutton.reset);
 }
 
+uint32_t now= 0;
 CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
 
 	while ((STOP == cycleMeasure) && (0 == GET_INPUT(measurementIndex)))
@@ -2308,7 +2310,7 @@ CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementInde
 		if (TIME_FINISH == timer_Status(TIMER_CLEARSENSOR)) {
 			msensor = io_getSensor();
 			if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
-
+				now = HAL_GetTick();
 				moutput.out0 = _ON;
 				moutput.out4 = _OFF; //turn off O7
 				io_setOutput(moutput, ucRegCoilsBuf);
@@ -2333,6 +2335,8 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 {
 	setCalibValue mcalibValue;
 	char fileName[17];
+	uint8_t trigger_in2 = 0;
+	CycleMeasure cycleMeasureZ = MEASUREZ;
 
 	if(measurementIndex == MEASUREMENT_1)
 	{
@@ -2348,53 +2352,71 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 		if(0 == GET_IN2)//if (_ON == minput.in2) //C=1
 				{
 			timer_Start(TIMER_Z, TIMERMAXVALUE); //start timer to measure Z
+			trigger_in2 = 1;
 //			msensor.s0 = _OFF;
 //			msensor.s1 = _OFF;
 			cycleMeasure = MEASUREZ;
-			DBG("Measure Z start\r\n");
-			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
-				;
+			cycleMeasureZ = Z_NOT_OK;
+			DBG("Measure Z start and wait stable z\r\n");
+//			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
+//				;
+			while(trigger_in2 == 1)
+			{
+				if(GET_IN2 == 1)
+				{
+					trigger_in2 = 0;
+				}
+				if((0 == GET_SENSOR0) && (0 == GET_SENSOR1) && cycleMeasureZ == Z_NOT_OK)
+				{
+					mmeasureValue.Z = time_Stop(TIMER_Z);
+					cycleMeasureZ = Z_OK;
+				}
+			}
 		}
 	};
-	while ((MEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
-//		msensor = io_getSensor();
-		if ((0 == GET_IN2) && (0 == GET_SENSOR0) && (0 == GET_SENSOR1))//if ((_ON == minput.in2) && (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
-				{
-			moutput.out1 = _ON;
-			io_setOutput(moutput, ucRegCoilsBuf);
-			mmeasureValue.Z = time_Stop(TIMER_Z);
-			mdata.mode = ZONLY;
-			app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
-			screen_DataMeasureType1(mdata, mcalibValue, measurementIndex,
-							NOT_SHOW_HIS);
 
-			minput.in2 = _OFF;
-//			msensor.s0 = _OFF;
-//			msensor.s1 = _OFF;
-			cycleMeasure = Z_OK;
-			DBG("(C=2) Measure Z - OK\r\n");
-			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
-				;
-		}else if ((MEASUREZ == cycleMeasure) && (0 == GET_IN2) && ((1 == GET_SENSOR0) || (1 == GET_SENSOR1))) //else if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2) && ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
-				{
-			minput.in2 = _OFF;
-			moutput.out1 = _OFF;
-			io_setOutput(moutput, ucRegCoilsBuf);
-			time_Stop(TIMER_Z);
-			cycleMeasure = Z_NOT_OK;
-			mdata.mode = ZERROR1;
-			DBG("(C=2) Measure Z - [NOT] OK\r\n");
-			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
-				;
+	while ((MEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
+		if ((0 == GET_SENSOR0) && (0 == GET_SENSOR1)
+				&& cycleMeasureZ == Z_NOT_OK) //if ((_ON == minput.in2) && (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
+						{
+			mmeasureValue.Z = time_Stop(TIMER_Z);
+			cycleMeasureZ = Z_OK;
 		}
 
-		if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (1 == GET_IN2))//if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (_OFF == minput.in2))
-			{
+		if ((MEASUREZ == cycleMeasure) && (0 == GET_IN2)) //else if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2) && ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
+		{
+
+			if (cycleMeasureZ != Z_OK) {
+				minput.in2 = _OFF;
+				moutput.out1 = _OFF;
+				io_setOutput(moutput, ucRegCoilsBuf);
+				time_Stop(TIMER_Z);
+				cycleMeasureZ = Z_DONE;
+				mdata.mode = ZERROR1;
+				DBG("(C=2) Measure Z - [NOT] OK\r\n");
+				while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
+					;
+			} else { //Z_OK
+				moutput.out1 = _ON;
+				io_setOutput(moutput, ucRegCoilsBuf);
+				mdata.mode = ZONLY;
+				app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
+				screen_DataMeasureType1(mdata, mcalibValue, measurementIndex,
+				NOT_SHOW_HIS);
+
+				minput.in2 = _OFF;
+				cycleMeasureZ = Z_DONE;
+				DBG("(C=2) Measure Z - OK\r\n");
+			}
+		}
+
+		if ((Z_DONE == cycleMeasureZ) && (1 == GET_IN2))//if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (_OFF == minput.in2))
+		{
 			cycleMeasure = WAITMEASUREX1Y1;
 			DBG("(C=2 cycleMeasure = WAITMEASUREX1Y1\r\n");
 
 		}
-	};
+	}
 	return cycleMeasure;
 }
 

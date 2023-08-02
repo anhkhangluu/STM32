@@ -149,7 +149,7 @@ extern SPI_HandleTypeDef 	hspi2;
 #define HSPI_SDCARD		 	&hspi2
 
 extern RTC_HandleTypeDef 	hrtc;
-extern TIM_HandleTypeDef 	htim6;
+extern TIM_HandleTypeDef 	htim1;
 
 #include "structer.h"
 extern MeasureValue mcalibValue;
