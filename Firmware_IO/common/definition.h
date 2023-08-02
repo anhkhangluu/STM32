@@ -24,6 +24,7 @@
 #define TIMERCLEARCALIB             6000U * 10U *10
 #define TIMERY0ON                   1500U * 10U *10
 #define TIMEWAITX11                 200U * 10U *10
+#define TIMEWAITSTABLE				200U * 10U *10
 #define TIMERMAXVALUE               0xFFFFFFFFU
 
 #define DEBUG 1
