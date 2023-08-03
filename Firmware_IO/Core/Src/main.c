@@ -107,7 +107,7 @@ uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = { 0 };
 /*---------------------------------------------------*/
 
 /*----------------app.c----------------*/
-static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
+volatile static dataMeasure mdata;
 
 uint8_t menuScreenFlag = 0;
 wiz_NetInfo net_info = { .mac = { 0xEA, 0x11, 0x22, 0x33, 0x44, 0xEA }, .dhcp =
@@ -274,7 +274,7 @@ int main(void)
 #endif
 
 
-#if 1
+#if 0
 	unitTestZ();
 #endif
 	app_Init();
@@ -1553,7 +1553,7 @@ static void app_Measurement_1(void) {
 	mmeasureValue.Y2 = 0;
 	mmeasureValue.Z = 0;
 
-	DBG("START MEASUREMENT 1\r\n");
+	DBG("\n===START MEASUREMENT 1===\r\n");
 
 	cycleMeasure = meas_checkSensor(cycleMeasure, MEASUREMENT_1);
 	if (cycleMeasure == _ERROR) {
@@ -1873,7 +1873,7 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 	uint8_t temp = 0;
 	if (measurementIndex == 1) {
 		temp = (uint8_t) msetCalibValue_1;
-//		app_GetCalibValue(MEASUREMENT_1);
+		app_GetCalibValue(MEASUREMENT_1);
 	} else {
 		temp = (uint8_t) msetCalibValue_2;
 		app_GetCalibValue(MEASUREMENT_2);
@@ -1887,9 +1887,11 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 					/ 1000000.0; /* us/1000000 => s */
 			db_DetaZ = buffer.V * db_DetaTZ;
 			mdata.coordinates.Z = (int16_t) (db_DetaZ * 100.0);
-//			char buf[100];
-//			sprintf(buf,"mmeasureValue.Z =%ld mcalibValue.Z=%ld\n",mmeasureValue.Z,mcalibValue.Z);
+#ifdef CDC_DEBUG
+			char buf[100];
+			sprintf(buf,"mmeasureValue.Z =%ld mcalibValue.Z=%ld\n",mmeasureValue.Z,mcalibValue.Z);
 			DBG(buf);
+#endif
 			if ((db_DetaZ > buffer.Z) || (db_DetaZ < (-buffer.Z))) {
 				moutput.out3 = _ON;
 			} else {
@@ -1899,7 +1901,7 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 
 		/*calculator X Y*/
 		if (FINISH == lcycleMeasures) {
-//			char buf[100];
+
 			db_DetaTX1 = ((double) (mmeasureValue.X1 - mcalibValue.X1)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
 			db_DetaTY1 = ((double) (mmeasureValue.Y1 - mcalibValue.Y1)) * 10.0
@@ -1908,19 +1910,21 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 					/ 1000000.0; /* us/1000000 => s */
 			db_DetaTY2 = ((double) (mmeasureValue.Y2 - mcalibValue.Y2)) * 10.0
 					/ 1000000.0; /* us/1000000 => s */
-//			sprintf(buf, "mmeasureValue.X1=%ld mcalibValue.X1=%ld\n",
-//					mmeasureValue.X1, mcalibValue.X1);
-//			DBG(buf);
-//			sprintf(buf, "mmeasureValue.Y1=%ld mcalibValue.Y1=%ld\n",
-//					mmeasureValue.Y1, mcalibValue.Y1);
-//			DBG(buf);
-//			sprintf(buf, "mmeasureValue.X2=%ld mcalibValue.X2=%ld\n",
-//					mmeasureValue.X2, mcalibValue.X2);
-//			DBG(buf);
-//			sprintf(buf, "mmeasureValue.Y2=%ld mcalibValue.Y2=%ld\n",
-//					mmeasureValue.Y2, mcalibValue.Y2);
-//			DBG(buf);
-
+#ifdef CDC_DEBUG
+			char buf[100];
+			sprintf(buf, "mmeasureValue.X1=%ld mcalibValue.X1=%ld\n",
+					mmeasureValue.X1, mcalibValue.X1);
+			DBG(buf);
+			sprintf(buf, "mmeasureValue.Y1=%ld mcalibValue.Y1=%ld\n",
+					mmeasureValue.Y1, mcalibValue.Y1);
+			DBG(buf);
+			sprintf(buf, "mmeasureValue.X2=%ld mcalibValue.X2=%ld\n",
+					mmeasureValue.X2, mcalibValue.X2);
+			DBG(buf);
+			sprintf(buf, "mmeasureValue.Y2=%ld mcalibValue.Y2=%ld\n",
+					mmeasureValue.Y2, mcalibValue.Y2);
+			DBG(buf);
+#endif
 			db_anpha1 = (buffer.V * db_DetaTX1) / buffer.D;
 			db_beta1 = (buffer.V * db_DetaTY1) / buffer.D;
 			db_anpha2 = (buffer.V * db_DetaTX2) / buffer.D;
@@ -2357,19 +2361,20 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 //			msensor.s1 = _OFF;
 			cycleMeasure = MEASUREZ;
 			cycleMeasureZ = Z_NOT_OK;
-			DBG("Measure Z start and wait stable z\r\n");
-//			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
-//				;
+			DBG("Measure Z start\n");
+
 			while(trigger_in2 == 1)
 			{
 				if(GET_IN2 == 1)
 				{
 					trigger_in2 = 0;
+					DBG("Falling trigger in2 in C=1\n");
 				}
 				if((0 == GET_SENSOR0) && (0 == GET_SENSOR1) && cycleMeasureZ == Z_NOT_OK)
 				{
 					mmeasureValue.Z = time_Stop(TIMER_Z);
 					cycleMeasureZ = Z_OK;
+					DBG("get measureValue Z in cycleMeasure = WAITMEASUREZ mdata.mode = ZONLY\n");
 				}
 			}
 		}
@@ -2381,6 +2386,7 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 						{
 			mmeasureValue.Z = time_Stop(TIMER_Z);
 			cycleMeasureZ = Z_OK;
+			DBG("get measureValue Z in cycleMeasure = MEASUREZ\n");
 		}
 
 		if ((MEASUREZ == cycleMeasure) && (0 == GET_IN2)) //else if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2) && ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
@@ -2393,10 +2399,10 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 				time_Stop(TIMER_Z);
 				cycleMeasureZ = Z_DONE;
 				mdata.mode = ZERROR1;
-				DBG("(C=2) Measure Z - [NOT] OK\r\n");
+				DBG("(C=2) Measure Z - [NOT] OK mdata.mode = ZERROR1;\r\n");
 				while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 					;
-			} else { //Z_OK
+			} else if (cycleMeasureZ == Z_OK) { //Z_OK
 				moutput.out1 = _ON;
 				io_setOutput(moutput, ucRegCoilsBuf);
 				mdata.mode = ZONLY;
@@ -2406,7 +2412,9 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 
 				minput.in2 = _OFF;
 				cycleMeasureZ = Z_DONE;
-				DBG("(C=2) Measure Z - OK\r\n");
+				DBG("(C=2) Measure Z - OK mdata.mode = ZONLY;\r\n");
+				while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
+					;
 			}
 		}
 

@@ -18,5 +18,4 @@ void unitTestZ()
 	mcalibValue.Z = 249603;
 
 	app_CalculatorValue(WAITMEASUREX1Y1, ZONLY, 1);
-	screen_DataMeasureType1(data, setCalib, measIndex, showHisFlag)
 }
