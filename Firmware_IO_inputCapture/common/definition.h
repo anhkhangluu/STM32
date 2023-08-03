@@ -17,8 +17,9 @@
 
 #define TIMER_ERRORSENSOR			5 * 1000000 //5s
 #define TIMER_RESET_ERRORXY			2 * 1000000 //2s
+#define TIMER_CLEAR_SEN				TIMER_RESET_ERRORXY
 #define TIMER_SETCALIB	            6 * 1000000 //6s
-#define TIMER_RESET_CALIB		   10 * 1000000 //10s
+#define TIMER_RESET_CALIB		   	10000	//10s
 
 #define DEBUG 1
 #if(DEBUG == 1)

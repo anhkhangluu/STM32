@@ -38,6 +38,7 @@ typedef enum _CycleMeasure
     CHECKZVALUE,
     Z_OK,
     Z_NOT_OK,
+	Z_DONE,
     SETVALUEZ,
     WAITMEASUREX1Y1,
     WAITRBSTABLEX1Y1,

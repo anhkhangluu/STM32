@@ -60,9 +60,10 @@ static LCD_Options_t LCD_Opts;
 #define LCD_5x8DOTS             0x00
 //############################################################################################
 void  LCD_Delay_us(uint16_t  us)
-{
-	uint16_t count = __HAL_TIM_GET_COUNTER(&htim1);
-	while(__HAL_TIM_GET_COUNTER(&htim1)<(count+us));
+ {
+	__HAL_TIM_SET_COUNTER(&htim6, 0);
+	while (__HAL_TIM_GET_COUNTER(&htim6) < us)
+		;
 }
 //############################################################################################
 void  LCD_Delay_ms(uint8_t  ms)
@@ -234,7 +235,6 @@ static void LCD_Cmd4bit(uint8_t cmd)
 static void LCD_CursorSet(uint8_t col, uint8_t row)
 {
 	const uint8_t row_offsets[] = {0x00, 0x40, 0x10, 0x50};
-//	const uint8_t row_offsets[] = {0x00, 0x40, 0x10, 0x50};//change to this offset if row 3/4 wrong position
 	if (row >= _LCD_ROWS)
 		row = 0;
 	LCD_Opts.currentX = col;

@@ -9,6 +9,6 @@
 #define UNITTEST_H_
 
 #include "main.h"
-void unitTestZ();
+void unitTest();
 
 #endif /* UNITTEST_H_ */

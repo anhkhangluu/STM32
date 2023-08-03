@@ -10,10 +10,11 @@
 
 
 
-void unitTestZ()
+void unitTest()
 {
-	mmeasureValue.Z = 26500;
-//	mcalibValue.Z = 110;
 
-	app_CalculatorValue(WAITMEASUREX1Y1, ZONLY, 1);
+	while(1)
+	{
+
+	}
 }
