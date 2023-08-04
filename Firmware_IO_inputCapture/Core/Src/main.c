@@ -353,7 +353,7 @@ int main(void)
 			}
 		}
 	}
-	/* USER CODE END 3 */
+  /* USER CODE END 3 */
 }
 
 /**
@@ -606,7 +606,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_FALLING;
   sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
   sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
   sConfigIC.ICFilter = 0;
@@ -887,7 +887,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -1738,7 +1738,6 @@ static void app_Measurement(uint8_t measurementIndex) {
 	}
 }
 
-
 static void app_ClearAllOutput(void) {
 	moutput.out0 = _OFF;
 	moutput.out1 = _OFF;
@@ -2219,47 +2218,29 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 	CycleMeasure cycleMeasureZ = MEASUREZ;
 	captureTime_X = 0;
 	captureTime_Y = 0;
+	minput.in2 = _OFF;
+	msensor.s0 = _OFF;
+	msensor.s1 = _OFF;
 
 	while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
-		if(_ON == minput.in2)//if (_ON == minput.in2) //C=1
+		if(_ON == minput.in2) //C=1
 				{
 			//start timer to measure Z
-			msensor.s0 = _OFF;
-			msensor.s1 = _OFF;
 			cycleMeasure = MEASUREZ;
 			cycleMeasureZ = Z_NOT_OK;
 			DBG("Measure Z start\n");
-
-			while(minput.in2 == _ON)
-			{
-				if(GET_IN2 == 1)
-				{
-					minput.in2 = _OFF;
-					DBG("Falling trigger in2 in C=1\n");
-				}
-				if((_ON == msensor.s1) && (_ON == msensor.s0) && cycleMeasureZ == Z_NOT_OK)
-				{
-					mmeasureValue.Z =
-							captureTime_X >= captureTime_Y ?
-									captureTime_X : captureTime_Y;
-					cycleMeasureZ = Z_OK;
-					DBG("get measureValue Z in cycleMeasure = WAITMEASUREZ mdata.mode = ZONLY\n");
-				}
-			}
+			minput.in2 = _OFF;
+			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
+				;
 		}
-		msensor.s0 = _OFF;
-		msensor.s1 = _OFF;
-	};
-
+	}
 	while ((MEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
 		if ((_ON == msensor.s0) && (_ON == msensor.s1)
-				&& cycleMeasureZ == Z_NOT_OK) //if ((_ON == minput.in2) && (_ON == msensor.s0) && (_ON == msensor.s1)) //C=2
-						{
+				&& cycleMeasureZ == Z_NOT_OK) //C=2
+		{
 			msensor.s0 = _OFF;
 			msensor.s1 = _OFF;
-			mmeasureValue.Z =
-					captureTime_X >= captureTime_Y ?
-							captureTime_X : captureTime_Y;
+			mmeasureValue.Z = MAX(captureTime_X,captureTime_Y);
 			cycleMeasureZ = Z_OK;
 			DBG("get measureValue Z in cycleMeasure = MEASUREZ\n");
 		}
@@ -2289,13 +2270,14 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 				while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 					;
 			}
+			else
+				DBG("Not in case 1/2 of measurementZ");
 		}
 
 		if ((Z_DONE == cycleMeasureZ) && (1 == GET_IN2))//if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (_OFF == minput.in2))
 		{
 			cycleMeasure = WAITMEASUREX1Y1;
 			DBG("(C=2 cycleMeasure = WAITMEASUREX1Y1\r\n");
-
 		}
 	}
 	return cycleMeasure;
