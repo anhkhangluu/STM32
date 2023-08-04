@@ -45,6 +45,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 					(int16_t)(abs(data.coordinates.Z) / 100), abs(data.coordinates.Z) % 100,
 					(data.coordinates.R >= 0) ? "+" : "-",
 					(int16_t)(abs(data.coordinates.R) / 100), abs(data.coordinates.R) % 100);
+			DBG("LCD - MEASUREALL\n");
 		} else if (ZERROR1 == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=.....  Y=.....");
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=.....  R=.....");
