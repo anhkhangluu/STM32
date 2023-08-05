@@ -30,7 +30,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 	if (CALIBSET == setCalib) {
 		data = capData(data, NOT_SHOW_AB_FLAG);
 		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
-				"20%02d-%02d-%02d% 02d:%02d", data.time.year, data.time.month,
+				"20%02d-%02d-%02d %02d:%02d", data.time.year, data.time.month,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode) {
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1,
@@ -102,14 +102,14 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 				data.time.day, data.time.hour, data.time.minute);
 		if (MEASUREALL == data.mode || data.mode == ZERROR2) {
 			data = capData(data, SHOW_AB_FLAG);
-			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   A=%s%02d.%01d",
+			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   A=%s%2d.%01d",
 					(data.coordinates.aX >= 0) ? "+" : "-",
 					(int16_t)(abs(data.coordinates.aX) / 10), abs(data.coordinates.aX) % 10);
-			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "   B=%s%02d.%01d",
+			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "   B=%s%2d.%01d",
 					(data.coordinates.aY >= 0) ? "+" : "-",
 					(int16_t)(abs(data.coordinates.aY) / 10), abs(data.coordinates.aY) % 10);
-			screenBuffer.line3[11] = 0xDF;
-			screenBuffer.line4[11] = 0xDF;
+			screenBuffer.line3[10] = 0xDF;
+			screenBuffer.line4[10] = 0xDF;
 		} else if (ZERROR1 == data.mode || data.mode == ZONLY) {
 
 			snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    A=.....");

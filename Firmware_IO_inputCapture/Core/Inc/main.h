@@ -46,7 +46,7 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-#define CDC_DEBUG
+//#define CDC_DEBUG
 #ifdef CDC_DEBUG
 #include "string.h"
 #define DBG(x) CDC_Transmit_FS(x,strlen(x))
