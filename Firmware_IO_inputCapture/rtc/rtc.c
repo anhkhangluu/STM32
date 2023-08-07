@@ -14,7 +14,7 @@ void rtc_SetDateTime(Time time) {
 	sTime.Seconds = time.second; // set seconds
 	sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
 	sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK) {
 		DBG("set time ERROR");
 		return;
 	}
@@ -22,20 +22,21 @@ void rtc_SetDateTime(Time time) {
 	sDate.Month = time.month; // month
 	sDate.Date = time.day; // date
 	sDate.Year = time.year; // year
-	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
+	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK) {
 		DBG("set date ERROR");
 		return;
 	}
+
 }
 
-Time rtc_Now() {
+Time rtc_Now(void) {
 	Time time;
 	RTC_DateTypeDef gDate;
 	RTC_TimeTypeDef gTime;
 	/* Get the RTC current Time */
-	HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BCD);
+	HAL_RTC_GetTime(&hrtc, &gTime, RTC_FORMAT_BIN);
 	/* Get the RTC current Date */
-	HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BCD);
+	HAL_RTC_GetDate(&hrtc, &gDate, RTC_FORMAT_BIN);
 	time.day = gDate.Date;
 	time.month = gDate.Month;
 	time.year = gDate.Year;

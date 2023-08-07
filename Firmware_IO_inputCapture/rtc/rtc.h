@@ -11,7 +11,7 @@
 #include "structer.h"
 #include "main.h"
 
-Time rtc_Now();
+Time rtc_Now(void);
 void rtc_SetDateTime(Time time);
 
 

@@ -104,7 +104,7 @@ uint16_t usRegInputBuf[REG_INPUT_NREGS] = { 0 };
 uint16_t usRegHoldingBuf[REG_HOLDING_NREGS] = { 0 };
 uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = { 0 };
 
-/*---------------------------------------------------*/
+/*----------------------------------------------------------------------*/
 
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
@@ -129,6 +129,9 @@ MeasureValue mmeasureValue;
 
 volatile static setCalibValue calibStatus_1; //for measurement1
 volatile static setCalibValue calibStatus_2; //for measurement2
+
+static uint8_t meas1WrongPos = 0;
+static uint8_t meas2WrongPos = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -149,7 +152,6 @@ void Callback_IPAssigned(void) {
 void Callback_IPConflict(void) {
 
 }
-
 
 static void write_SDCard(dataMeasure data, char *fileName);
 static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex);
@@ -284,8 +286,6 @@ int main(void)
 
 
 #if 0
-	TIM1->CNT = 0;
-
 	unitTest();
 #endif
 	app_Init();
@@ -312,10 +312,12 @@ int main(void)
 			minput.in0 = _OFF;
 			app_Measurement(MEASUREMENT_1); //measurement 1
 		}
+
 		else if (_ON == minput.in1) {
 			minput.in1 = _OFF;
 			app_Measurement(MEASUREMENT_2); //measurement 2
 		}
+
 
 		if (_ON == mbutton.reset) { //reset datacalib
 			__time = 0;
@@ -328,28 +330,43 @@ int main(void)
 			 }while(_ON == mbutton.reset && _time < TIMER_RESET_CALIB);*/
 
 			app_timerStart();
-			while (io_getButton().reset == _ON && __time < TIMER_RESET_CALIB) {
-				__time = (overflow - 1) * MAX_PERIOD
-						+ __HAL_TIM_GET_COUNTER(&htim1);
-
-				if (__time >= TIMER_RESET_CALIB /*10sec*/) { //long press button in 10sec
-					MeasureValue vl = { 0, 0, 0, 0, 0 };
-					DBG("Clear DataCalib by RESET button\n");
-					if (mainScreenFlag == MEASUREMENT_1) {
-						FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
-						mledStatus.led1 = _OFF;
-						io_setLedStatus(mledStatus, ucRegCoilsBuf);
-						calibStatus_1 = CALIBRESET;
-						app_GotoMainScreen(CALIBRESET, MEASUREMENT_1);
-					} else {
-						FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
-						mledStatus.led2 = _OFF;
-						io_setLedStatus(mledStatus, ucRegCoilsBuf);
-						calibStatus_2 = CALIBRESET;
-						app_GotoMainScreen(CALIBRESET, MEASUREMENT_2);
-					}
-
+			while (io_getButton().reset == _ON)
+				;
+			__time = (overflow - 1) * MAX_PERIOD + __HAL_TIM_GET_COUNTER(&htim1);
+			if (__time >= TIMER_RESET_CALIB /*10sec*/) { //long press button in 10sec
+				MeasureValue vl = { 0, 0, 0, 0, 0 };
+				DBG("Clear DataCalib by RESET button\n");
+				if (mainScreenFlag == MEASUREMENT_1) {
+					FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
+					mledStatus.led1 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					calibStatus_1 = CALIBRESET;
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_1);
+				} else {
+					FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
+					mledStatus.led2 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					calibStatus_2 = CALIBRESET;
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_2);
 				}
+			}
+
+			if(__time >= TIMER_CLEAR_MEAS_WRONG_POS)
+			{
+				if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
+					meas1WrongPos = 0;
+					mledStatus.led1 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				}
+				else
+				{
+					meas2WrongPos = 0;
+					mledStatus.led2 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				}
+
+				if(meas1WrongPos == 0 && meas2WrongPos ==0)//stop blinking led
+					HAL_TIM_Base_Stop_IT(&htim3);
 			}
 		}
 	}
@@ -366,12 +383,17 @@ void SystemClock_Config(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
+  /** Configure LSE Drive Capability
+  */
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -393,7 +415,7 @@ void SystemClock_Config(void)
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_USART2
                               |RCC_PERIPHCLK_RTC;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
 
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
@@ -441,41 +463,25 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x10;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x1;
+  sTime.Hours = 10;
+  sTime.Minutes = 0;
+  sTime.Seconds = 1;
   sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
   sDate.WeekDay = RTC_WEEKDAY_MONDAY;
   sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 0x1;
-  sDate.Year = 0x1;
+  sDate.Date = 1;
+  sDate.Year = 1;
 
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
-	sTime.Hours = mtime.hour;
-	sTime.Minutes = mtime.minute;
-	sTime.Seconds = 0x0;
-	sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-	sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
-		Error_Handler();
-	}
-	sDate.WeekDay = RTC_WEEKDAY_MONDAY; //dont care
-	sDate.Month = mtime.month;
-	sDate.Date = mtime.day;
-	sDate.Year = mtime.year;
-
-	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
-		Error_Handler();
-	}
 #endif
   /* USER CODE END RTC_Init 2 */
 
@@ -644,9 +650,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 47000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
+  htim3.Init.Period = 1000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -769,9 +775,9 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
@@ -1169,6 +1175,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 	if (htim == &htim1) {
 		overflow++;
 //		updateMBRegister(); //update modbus register every 100us
+	}
+
+	if(htim == &htim3)
+	{
+		if(meas1WrongPos)
+			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+		if(meas2WrongPos)
+			HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
 	}
 }
 static void app_SettingVDLRZ(void) {
@@ -1593,6 +1607,10 @@ static void app_Measurement(uint8_t measurementIndex) {
 
 	if(measurementIndex == MEASUREMENT_1)
 	{
+		moutput.out2 = _OFF;
+		moutput.out3 = _OFF;
+		io_setOutput(moutput, ucRegCoilsBuf);
+
 		DBG("START MEASUREMENT 1\r\n");
 		calibStatus = calibStatus_1;
 		strcpy(fileName, MEASUREMENT_1_FILE_NAME);
@@ -1600,12 +1618,15 @@ static void app_Measurement(uint8_t measurementIndex) {
 	}
 	else
 	{
+		moutput.out5 = _OFF;
+		moutput.out6 = _OFF;
+		io_setOutput(moutput, ucRegCoilsBuf);
 		DBG("START MEASUREMENT 2\r\n");
 		calibStatus = calibStatus_2;
 		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
 
 	}
-//	DBG("==START MEASUREMENT==\r\n");
+
 	cycleMeasure = meas_checkSensor(cycleMeasure, measurementIndex);
 	if (cycleMeasure == _ERROR) {
 		DBG("cycleMeasure == _ERROR");
@@ -1671,6 +1692,19 @@ static void app_Measurement(uint8_t measurementIndex) {
 			}
 			app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
 
+			if (moutput.out2 == _ON && moutput.out3 == _ON)
+				meas1WrongPos = 1;
+			else
+				meas1WrongPos = 0;
+
+			if (moutput.out5 == _ON && moutput.out6 == _ON)
+				meas2WrongPos = 1;
+			else
+				meas2WrongPos = 0;
+
+			if(meas1WrongPos || meas2WrongPos)
+				HAL_TIM_Base_Start_IT(&htim3); //start timmer interrupt for blink led
+
 			if ((NONE != mdata.mode) && (CALIBSET == calibStatus)) {
 				write_SDCard(mdata, fileName);
 			}
@@ -1687,11 +1721,11 @@ static void app_Measurement(uint8_t measurementIndex) {
 	if (1 == GET_INPUT(measurementIndex) /*end of cycle measurement */) {
 		moutput.out0 = _OFF;
 		moutput.out1 = _OFF;
-		moutput.out2 = _OFF;
-		moutput.out3 = _OFF;
+//		moutput.out2 = _OFF;
+//		moutput.out3 = _OFF;
 		moutput.out4 = _OFF;
-		moutput.out5 = _OFF;
-		moutput.out6 = _OFF;
+//		moutput.out5 = _OFF;
+//		moutput.out6 = _OFF;
 		moutput.out7 = _OFF;
 		io_setOutput(moutput, ucRegCoilsBuf);
 
@@ -1729,7 +1763,6 @@ static void app_Measurement(uint8_t measurementIndex) {
 					app_CalculatorValue(FINISH, mdata.mode, measurementIndex);
 					mainScreenFlag = measurementIndex;
 					screen_DataMeasureType1(mdata, calibStatus, measurementIndex, NOT_SHOW_HIS);//in man hinh 0
-
 				}
 			}
 		}
@@ -1806,11 +1839,19 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 			DBG(buf);
 #endif
 			if ((db_DetaZ > buffer.Z) || (db_DetaZ < (-buffer.Z))) {
-				moutput.out3 = _ON;
+				if (measurementIndex == 1)
+					moutput.out3 = _ON;
+				else
+					moutput.out6 = _ON;
 			} else {
-				moutput.out3 = _OFF;
+				if (measurementIndex == 1)
+					moutput.out3 = _OFF;
+				else
+					moutput.out6 = _OFF;
 			}
+			io_setOutput(moutput, ucRegCoilsBuf);
 		}
+
 
 		/*calculator X Y*/
 		if (FINISH == lcycleMeasures) {
@@ -1879,12 +1920,18 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 			mdata.coordinates.aY = (int16_t) (db_LYRB * 10.0);
 
 			if (db_r2 > buffer.R) {
-				moutput.out2 = _ON;
+				if (measurementIndex == 1)
+					moutput.out2 = _ON;
+				else
+					moutput.out5 = _ON;
 			} else {
-				moutput.out2 = _OFF;
+				if (measurementIndex == 1)
+					moutput.out2 = _OFF;
+				else
+					moutput.out5 = _OFF;
 			}
+			io_setOutput(moutput, ucRegCoilsBuf);
 		}
-		io_setOutput(moutput, ucRegCoilsBuf);
 	}
 }
 
@@ -2135,6 +2182,7 @@ static void app_Init(void) {
 
 	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1);
 }
+
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 	uint8_t index = 0;
 	volatile dataMeasure data = {0};
@@ -2176,7 +2224,6 @@ CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementInde
 
 	while ((STOP == cycleMeasure) && (0 == GET_INPUT(measurementIndex)))
 	{
-		app_ClearAllOutput();
 		minput.in0 = _OFF;
 		cycleMeasure = CLEARSENSOR;
 		moutput.out4 = _ON; // O7 ON start clear sensor
