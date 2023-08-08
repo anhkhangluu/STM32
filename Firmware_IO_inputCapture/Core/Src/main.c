@@ -62,6 +62,9 @@
 #define SHOW_HIS			1
 #define NOT_SHOW_HIS		0
 
+#define SHOW_SET_CALIB		1
+#define NOT_SHOW_SET_CALIB	0
+
 #define MEASUREMENT_1_FILE_NAME		"measurement1.csv"
 #define MEASUREMENT_2_FILE_NAME		"measurement2.csv"
 
@@ -173,7 +176,7 @@ static optionScreen_e_t app_optionMenu(void);
 static void app_processOptionMenu(optionScreen_e_t optionMenu);
 static void app_ShowIP(void);
 static void app_Init(void);
-static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex);
+static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex, uint8_t showSetCalib);
 static void app_SettingVDLRZ(void);
 static void updateMBRegister(void);
 void app_timerStart();
@@ -233,7 +236,8 @@ int main(void)
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2);
 
-	HAL_TIM_Base_Start(&htim3);
+//	HAL_TIM_Base_Start(&htim3); //should check LCD led
+//	HAL_TIM_Base_Start_IT(&htim3);
 	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
 
 	HAL_TIM_Base_Start(&htim6);//timer using for delay in LCD
@@ -319,20 +323,43 @@ int main(void)
 		}
 
 
-		if (_ON == mbutton.reset) { //reset datacalib
+		if (_ON == mbutton.reset || GET_IN3 == 0) { //reset datacalib
 			__time = 0;
-			/*
-			 do
-			 {
-			 HAL_Delay(10);
-			 _time++;
-			 mbutton = io_getButton();
-			 }while(_ON == mbutton.reset && _time < TIMER_RESET_CALIB);*/
-
 			app_timerStart();
 			while (io_getButton().reset == _ON)
 				;
 			__time = (overflow - 1) * MAX_PERIOD + __HAL_TIM_GET_COUNTER(&htim1);
+			if(__time >= TIMER_CLEAR_MEAS_WRONG_POS || GET_IN3 == 0)
+			{
+				if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
+					meas1WrongPos = 0;
+					moutput.out2 = _OFF;
+					moutput.out3 = _OFF;
+					io_setOutput(moutput, ucRegCoilsBuf);
+					if(calibStatus_1 == CALIBSET)
+						mledStatus.led1 = _ON;
+					else
+						mledStatus.led1 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				}
+				else
+				{
+					meas2WrongPos = 0;
+					moutput.out5 = _OFF;
+					moutput.out6 = _OFF;
+					io_setOutput(moutput, ucRegCoilsBuf);
+					if(calibStatus_2 == CALIBSET)
+						mledStatus.led2 = _ON;
+					else
+						mledStatus.led2 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				}
+
+				if(meas1WrongPos == 0 && meas2WrongPos ==0)//stop blinking led
+					HAL_TIM_Base_Stop_IT(&htim3);
+			}
+
+
 			if (__time >= TIMER_RESET_CALIB /*10sec*/) { //long press button in 10sec
 				MeasureValue vl = { 0, 0, 0, 0, 0 };
 				DBG("Clear DataCalib by RESET button\n");
@@ -341,32 +368,14 @@ int main(void)
 					mledStatus.led1 = _OFF;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					calibStatus_1 = CALIBRESET;
-					app_GotoMainScreen(CALIBRESET, MEASUREMENT_1);
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 				} else {
 					FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
 					mledStatus.led2 = _OFF;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					calibStatus_2 = CALIBRESET;
-					app_GotoMainScreen(CALIBRESET, MEASUREMENT_2);
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_2, NOT_SHOW_SET_CALIB);
 				}
-			}
-
-			if(__time >= TIMER_CLEAR_MEAS_WRONG_POS)
-			{
-				if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
-					meas1WrongPos = 0;
-					mledStatus.led1 = _OFF;
-					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-				}
-				else
-				{
-					meas2WrongPos = 0;
-					mledStatus.led2 = _OFF;
-					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-				}
-
-				if(meas1WrongPos == 0 && meas2WrongPos ==0)//stop blinking led
-					HAL_TIM_Base_Stop_IT(&htim3);
 			}
 		}
 	}
@@ -1363,7 +1372,7 @@ static void app_SettingVDLRZ(void) {
 		}
 	} while (exit == 0);
 	FLASH_WriteVDRLZ(&buffer);
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1); // main screen
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB); // main screen
 }
 
 static void app_SettingRtc(void) {
@@ -1574,7 +1583,7 @@ static void app_SettingRtc(void) {
 		}
 	} while (0 == exit);
 	rtc_SetDateTime(mtime);
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1); // main screen
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB); // main screen
 }
 
 static void app_Measurement(uint8_t measurementIndex) {
@@ -1692,18 +1701,19 @@ static void app_Measurement(uint8_t measurementIndex) {
 			}
 			app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
 
-			if (moutput.out2 == _ON && moutput.out3 == _ON)
+			if (moutput.out2 == _ON && moutput.out3 == _ON) {
 				meas1WrongPos = 1;
-			else
+				HAL_TIM_Base_Start_IT(&htim3);
+			} else {
 				meas1WrongPos = 0;
+			}
 
-			if (moutput.out5 == _ON && moutput.out6 == _ON)
+			if (moutput.out5 == _ON && moutput.out6 == _ON) {
 				meas2WrongPos = 1;
-			else
+				HAL_TIM_Base_Start_IT(&htim3);
+			} else {
 				meas2WrongPos = 0;
-
-			if(meas1WrongPos || meas2WrongPos)
-				HAL_TIM_Base_Start_IT(&htim3); //start timmer interrupt for blink led
+			}
 
 			if ((NONE != mdata.mode) && (CALIBSET == calibStatus)) {
 				write_SDCard(mdata, fileName);
@@ -1760,14 +1770,13 @@ static void app_Measurement(uint8_t measurementIndex) {
 					calibStatus = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					DBG("cycleMeasure = SET CALIB DONE\n");
-					app_CalculatorValue(FINISH, mdata.mode, measurementIndex);
 					mainScreenFlag = measurementIndex;
-					screen_DataMeasureType1(mdata, calibStatus, measurementIndex, NOT_SHOW_HIS);//in man hinh 0
+					app_GotoMainScreen(calibStatus, measurementIndex, SHOW_SET_CALIB);//in man hinh 0
 				}
 			}
 		}
 		else
-			app_GotoMainScreen(calibStatus, measurementIndex);
+			app_GotoMainScreen(calibStatus, measurementIndex, NOT_SHOW_SET_CALIB);
 	}
 }
 
@@ -2013,11 +2022,11 @@ static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	switch (optionMenu) {
 	case measurement1Setting:
 
-		app_GotoMainScreen(calibStatus_1, MEASUREMENT_1);
+		app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 		break;
 	case measurement2Setting:
 
-		app_GotoMainScreen(calibStatus_2, MEASUREMENT_2);
+		app_GotoMainScreen(calibStatus_2, MEASUREMENT_2, NOT_SHOW_SET_CALIB);
 		break;
 	case measurement1HisList:
 		app_HisValue(MEASUREMENT_1);
@@ -2051,7 +2060,7 @@ static void app_ShowIP(void) {
 		}
 	} while (exit == 0);
 
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1);
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 }
 
 static void app_HisValue(uint8_t measurementIndex) {
@@ -2135,7 +2144,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 			exit = 1;
 		}
 	} while (exit == 0);
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1); // main screen
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB); // main screen
 }
 
 static void app_Init(void) {
@@ -2180,17 +2189,26 @@ static void app_Init(void) {
 
 	io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1);
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 }
 
-static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
+static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex, uint8_t showSetCalib) {
 	uint8_t index = 0;
 	volatile dataMeasure data = {0};
 	uint8_t exit = 0;
 
 	mainScreenFlag = measurementIndex; //use for reset calib
+	if(showSetCalib == NOT_SHOW_SET_CALIB)
+	{
+		data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
+	}
+	else
+	{
+		data.time = rtc_Now();
+		data.mode = 4;
+	}
 
-	data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
+
 	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
 
 	do {
@@ -2217,7 +2235,7 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 		}
 
 	} while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1
-			&& _OFF == mbutton.reset);
+			&& _OFF == mbutton.reset && GET_IN3 == 1);
 }
 
 CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
