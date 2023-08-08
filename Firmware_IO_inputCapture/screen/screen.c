@@ -332,3 +332,11 @@ static dataMeasure capData(dataMeasure input, uint8_t isShowAB) {
 	return input;
 }
 
+void screen_noSDCard(void)
+{
+	LCD_Clear();
+	LCD_Puts(0, 0, " ");
+	LCD_Puts(0, 1, "   No SD-Card");
+	LCD_Puts(0, 2, " ");
+	LCD_Puts(0, 3, " ");
+}

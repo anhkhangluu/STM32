@@ -27,6 +27,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib, uint8_t measInd
 void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib, uint8_t measIndex, uint8_t showHisFlag);
 void screen_Time(Time time);
 void screen_showIP(wiz_NetInfo *netInfo);
+void screen_noSDCard(void);
 
 void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle);
 void screen_setDateTime(Time time, CycleTime cycle);

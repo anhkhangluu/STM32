@@ -43,7 +43,7 @@
 #include "math.h"
 #include "rtc.h"
 #include "flash.h"
-#include "unittest.h"
+//#include "unittest.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -236,8 +236,6 @@ int main(void)
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2);
 
-//	HAL_TIM_Base_Start(&htim3); //should check LCD led
-//	HAL_TIM_Base_Start_IT(&htim3);
 	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
 
 	HAL_TIM_Base_Start(&htim6);//timer using for delay in LCD
@@ -261,11 +259,12 @@ int main(void)
 	_data.mode = 4;
 
 	write_SDCard(_data, MEASUREMENT_1_FILE_NAME);
-//	process_SD_Card(_data, MEASUREMENT_1_FILE_NAME);
+
+
 	__data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
-//	app_GotoMainScreen(CALIBSET, MEASUREMENT_1);
+
 	screen_DataMeasureType1(__data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
-	HAL_Delay(500);
+	HAL_Delay(1000);
 	dataMeasure ___data,____data;
 	___data.coordinates.R = 100;
 	___data.coordinates.X = -56;
@@ -281,7 +280,8 @@ int main(void)
 	___data.mode = 4;
 
 	write_SDCard(___data, MEASUREMENT_1_FILE_NAME);
-//	process_SD_Card(__data, MEASUREMENT_1_FILE_NAME);
+
+	HAL_Delay(100);
 	____data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
 	screen_DataMeasureType1(____data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
 	}
@@ -292,6 +292,18 @@ int main(void)
 #if 0
 	unitTest();
 #endif
+
+	if (HAL_GPIO_ReadPin(SD_Detect_GPIO_Port, SD_Detect_Pin)
+			!= GPIO_PIN_RESET) {
+		HAL_SPI_DeInit(&hspi2);
+		screen_noSDCard();
+	}
+
+	while (HAL_GPIO_ReadPin(SD_Detect_GPIO_Port, SD_Detect_Pin)
+			!= GPIO_PIN_RESET)
+		;
+
+
 	app_Init();
 
   /* USER CODE END 2 */
@@ -355,8 +367,6 @@ int main(void)
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 				}
 
-				if(meas1WrongPos == 0 && meas2WrongPos ==0)//stop blinking led
-					HAL_TIM_Base_Stop_IT(&htim3);
 			}
 
 
@@ -559,7 +569,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -901,7 +911,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : SD_Detect_Pin */
+  GPIO_InitStruct.Pin = SD_Detect_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(SD_Detect_GPIO_Port, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI2_3_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
+
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
@@ -1077,7 +1096,7 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 	return MB_ENOERR;
 #endif
 }
-
+FRESULT resultFR = FR_NOT_READY;
 static void write_SDCard(dataMeasure data, char *fileName) {
 	FATFS FatFs;
 	FIL fil;
@@ -1096,20 +1115,30 @@ static void write_SDCard(dataMeasure data, char *fileName) {
 		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
-	if (f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE) == FR_OK) //In this mode, it will create the file if file not existed
-			{
-		sprintf(buff,
-				"20%02u/%02u/%02u - %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
-				data.time.year, data.time.month, data.time.day, data.time.hour,
-				data.time.minute, data.coordinates.R, data.coordinates.X,
-				data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
-				data.coordinates.aY, data.mode);
-		f_lseek(&fil, f_size(&fil));
-		f_write(&fil, buff, strlen(buff), &BytesWr);
-		f_close(&fil);
-
-	}
-	f_mount(NULL, "", 0);
+	uint8_t retry = 0;
+	do {
+		resultFR = f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE);
+//		if (f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE)
+//				== FR_OK) //In this mode, it will create the file if file not existed
+		if (resultFR == FR_OK) {
+			sprintf(buff,
+					"20%02u/%02u/%02u - %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
+					data.time.year, data.time.month, data.time.day,
+					data.time.hour, data.time.minute, data.coordinates.R,
+					data.coordinates.X, data.coordinates.Y, data.coordinates.Z,
+					data.coordinates.aX, data.coordinates.aY, data.mode);
+			f_lseek(&fil, f_size(&fil));
+			f_write(&fil, buff, strlen(buff), &BytesWr);
+			f_close(&fil);
+			break;
+		}
+		else
+			retry++;
+	} while (retry < 5);
+	if (f_mount(NULL, "", 0) != FR_OK)
+		return;
+	else
+		__NOP();
 }
 
 static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
@@ -1120,7 +1149,7 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
 	
 	unsigned int totalLines = 0;
 
-	if(f_mount(&FatFs, "", 1) != FR_OK) //mount SD card
+	if(f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
 		return data;
 	if(f_open(&fil, fileName, FA_READ)!= FR_OK)
 		return data;
@@ -1138,7 +1167,8 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
     	f_gets(buff, sizeof(buff), &fil);
     }
     f_close(&fil);
-    f_mount(NULL, "", 0);
+    if(f_mount(NULL, "", 0) != FR_OK)
+    	return data;
 //    uint8_t itemparse = sscanf(buff, "20%hhi-%hhi-%hhi %hhi:%hhi,%hi,%hi,%hi,%hi,%hi,%hi,%hhi\n", &data->time.year, &data->time.month, &data->time.day, &data->time.hour,
 //			&data->time.minute, &data->coordinates.R, &data->coordinates.X,
 //			&data->coordinates.Y, &data->coordinates.Z, &data->coordinates.aX,
@@ -1192,6 +1222,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 		if(meas2WrongPos)
 			HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+		if(meas1WrongPos == 0 && meas2WrongPos == 0)
+		{
+			HAL_TIM_Base_Stop_IT(&htim3);
+		}
+
 	}
 }
 static void app_SettingVDLRZ(void) {
@@ -1618,21 +1653,31 @@ static void app_Measurement(uint8_t measurementIndex) {
 	{
 		moutput.out2 = _OFF;
 		moutput.out3 = _OFF;
+		meas1WrongPos = 0;
 		io_setOutput(moutput, ucRegCoilsBuf);
 
 		DBG("START MEASUREMENT 1\r\n");
 		calibStatus = calibStatus_1;
 		strcpy(fileName, MEASUREMENT_1_FILE_NAME);
-
+		if(calibStatus == CALIBSET){
+			mledStatus.led1 = _ON;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+		}
 	}
 	else
 	{
 		moutput.out5 = _OFF;
 		moutput.out6 = _OFF;
+		meas2WrongPos = 0;
 		io_setOutput(moutput, ucRegCoilsBuf);
+
 		DBG("START MEASUREMENT 2\r\n");
 		calibStatus = calibStatus_2;
 		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
+		if(calibStatus == CALIBSET){
+			mledStatus.led2 = _ON;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+		}
 
 	}
 
@@ -2198,9 +2243,12 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex, uint8_t
 	uint8_t exit = 0;
 
 	mainScreenFlag = measurementIndex; //use for reset calib
-	if(showSetCalib == NOT_SHOW_SET_CALIB)
-	{
-		data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
+	if (showSetCalib == NOT_SHOW_SET_CALIB) {
+		if (measurementIndex == MEASUREMENT_1) {
+			data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
+		} else {
+			data = read_SDCard(MEASUREMENT_2_FILE_NAME, index);
+		}
 	}
 	else
 	{
@@ -2463,6 +2511,17 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		overflow = 0; // reset
 		__HAL_TIM_SET_COUNTER(&htim1,0);
 		previousCapture = __HAL_TIM_GET_COUNTER(&htim1);
+	}
+
+	if (GPIO_Pin == SD_Detect_Pin) {
+		if (HAL_GPIO_ReadPin(SD_Detect_GPIO_Port, SD_Detect_Pin)
+				== GPIO_PIN_RESET) {
+			HAL_Delay(1000);
+			MX_SPI2_Init();
+			MX_FATFS_Init();
+		}
+		else
+			HAL_SPI_DeInit(&hspi2);
 	}
 }
 
