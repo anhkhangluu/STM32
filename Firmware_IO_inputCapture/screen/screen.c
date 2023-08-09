@@ -9,6 +9,8 @@
 #include "screen.h"
 #include "stdlib.h"
 #include "main.h" ///use for cdc debug
+#include "rtc.h"
+
 
 #define SHOW_AB_FLAG		1
 #define NOT_SHOW_AB_FLAG	0
@@ -332,11 +334,20 @@ static dataMeasure capData(dataMeasure input, uint8_t isShowAB) {
 	return input;
 }
 
-void screen_noSDCard(void)
+void screen_waitMeasurement(uint8_t measIndex)
 {
+	screenData screenBuffer;
+	Time __time = rtc_Now();
 	LCD_Clear();
-	LCD_Puts(0, 0, " ");
-	LCD_Puts(0, 1, "   No SD-Card");
-	LCD_Puts(0, 2, " ");
-	LCD_Puts(0, 3, " ");
+	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+					measIndex);
+	snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
+					"20%02d/%02d/%02d %02d:%02d", __time.year, __time.month,
+					__time.day, __time.hour, __time.minute);
+	snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=.....  Y=.....");
+	snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=.....  R=.....");
+	LCD_Puts(0, 0, screenBuffer.line1);
+	LCD_Puts(0, 1, screenBuffer.line2);
+	LCD_Puts(0, 2, screenBuffer.line3);
+	LCD_Puts(0, 3, screenBuffer.line4);
 }
