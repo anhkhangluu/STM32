@@ -33,6 +33,6 @@ void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle);
 void screen_setDateTime(Time time, CycleTime cycle);
 void screen_OptionMenu(optionScreen_e_t *optionIndex);
 void screen_waitMeasurement(uint8_t measIndex);
-
+void screen_errorXY(uint8_t measIndex);
 
 #endif /* SCREEN_H_ */

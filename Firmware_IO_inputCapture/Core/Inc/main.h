@@ -136,6 +136,8 @@ void Error_Handler(void);
 #define SD_CS_GPIO_Port GPIOD
 #define SD_SCK_Pin GPIO_PIN_1
 #define SD_SCK_GPIO_Port GPIOD
+#define SD_Detect_Pin GPIO_PIN_2
+#define SD_Detect_GPIO_Port GPIOD
 #define SD_MISO_Pin GPIO_PIN_3
 #define SD_MISO_GPIO_Port GPIOD
 #define SD_MOSI_Pin GPIO_PIN_4

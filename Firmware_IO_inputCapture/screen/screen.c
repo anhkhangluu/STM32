@@ -76,7 +76,10 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 			DBG("LCD - No data\n");
 		}
 	} else {
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "..../../.. ..:..");
+		data.time = rtc_Now();
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
+				"20%02d/%02d/%02d %02d:%02d", data.time.year, data.time.month,
+				data.time.day, data.time.hour, data.time.minute);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=.....  Y=.....");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=.....  R=.....");
 	}
@@ -122,7 +125,10 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 			snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "                ");
 		}
 	} else {
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "..../../.. ..:..");
+		data.time = rtc_Now();
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
+				"20%02d/%02d/%02d %02d:%02d", data.time.year, data.time.month,
+				data.time.day, data.time.hour, data.time.minute);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    A=.....");
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "    B=.....");
 	}
@@ -346,6 +352,23 @@ void screen_waitMeasurement(uint8_t measIndex)
 					__time.day, __time.hour, __time.minute);
 	snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "X=.....  Y=.....");
 	snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "Z=.....  R=.....");
+	LCD_Puts(0, 0, screenBuffer.line1);
+	LCD_Puts(0, 1, screenBuffer.line2);
+	LCD_Puts(0, 2, screenBuffer.line3);
+	LCD_Puts(0, 3, screenBuffer.line4);
+}
+
+void screen_errorXY(uint8_t measIndex) {
+	screenData screenBuffer;
+	Time __time = rtc_Now();
+	LCD_Clear();
+	snprintf(screenBuffer.line1, LCD_LINE_SIZE + 1, "MEASUREMENT %01d",
+			measIndex);
+	snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1,
+			"20%02d/%02d/%02d %02d:%02d", __time.year, __time.month, __time.day,
+			__time.hour, __time.minute);
+	snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   SENSOR X/Y");
+	snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1, "     ERROR!");
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
