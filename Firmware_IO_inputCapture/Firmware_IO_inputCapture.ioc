@@ -98,6 +98,7 @@ Mcu.UserConstants=
 Mcu.UserName=STM32F072VBTx
 MxCube.Version=6.8.1
 MxDb.Version=DB.6.0.81
+NVIC.EXTI2_3_IRQn=true\:0\:0\:false\:false\:true\:true\:true\:true
 NVIC.EXTI4_15_IRQn=true\:1\:0\:true\:false\:true\:true\:true\:true
 NVIC.ForceEnableDMAVector=true
 NVIC.HardFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false

@@ -121,7 +121,6 @@ volatile uint32_t captureTime_Y = 0;
 volatile int32_t overflow = 0;
 volatile uint32_t previousCapture = 0;
 
-int32_t __time = 0;
 volatile static uint8_t mainScreenFlag = 0; //use for identify the screen
 volatile static button mbutton;
 volatile static input minput;
@@ -202,6 +201,7 @@ CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurement
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+	int32_t __time = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -915,6 +915,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(SD_Detect_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
+
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
