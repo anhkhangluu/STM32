@@ -1944,24 +1944,24 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 					mmeasureValue.Y2, mcalibValue.Y2);
 			DBG(buf);
 #endif
-			db_anpha1 = 2 * (buffer.V * db_DetaTX1) / buffer.D;
-			db_beta1 = 2 * (buffer.V * db_DetaTY1) / buffer.D;
-			db_anpha2 = 2 * (buffer.V * db_DetaTX2) / buffer.D;
-			db_beta2 = 2 * (buffer.V * db_DetaTY2) / buffer.D;
+			db_anpha1 = (buffer.V * db_DetaTX1) / buffer.D;
+			db_beta1 = (buffer.V * db_DetaTY1) / buffer.D;
+			db_anpha2 = (buffer.V * db_DetaTX2) / buffer.D;
+			db_beta2 = (buffer.V * db_DetaTY2) / buffer.D;
 
-			db_DetaXSS1 = buffer.D * sin(db_anpha1 / 2)
+			db_DetaXSS1 = (2 * buffer.D) * sin(db_anpha1 / 2)
 					* cos(db_anpha1 / 2);
-			db_DetaYSS1 = buffer.D * sin(db_beta1 / 2)
+			db_DetaYSS1 = (2 * buffer.D) * sin(db_beta1 / 2)
 					* cos(db_beta1 / 2);
-			db_DetaXRB1 = (db_DetaXSS1 + db_DetaYSS1) * cos(3.142/180 * 45);
-			db_DetaYRB1 = (db_DetaXSS1 - db_DetaYSS1) * cos(3.142/180 * 45);
+			db_DetaXRB1 = db_DetaXSS1 * cos(3.142 / 4);
+			db_DetaYRB1 = db_DetaYSS1 * cos(3.142 / 4);
 
-			db_DetaXSS2 = buffer.D * sin(db_anpha2 / 2)
+			db_DetaXSS2 = (2 * buffer.D) * sin(db_anpha2 / 2)
 					* cos(db_anpha2 / 2);
-			db_DetaYSS2 = buffer.D * sin(db_beta2 / 2)
+			db_DetaYSS2 = (2 * buffer.D) * sin(db_beta2 / 2)
 					* cos(db_beta2 / 2);
-			db_DetaXRB2 = (db_DetaXSS2 + db_DetaYSS2) * cos(3.142/180 * 45);
-			db_DetaYRB2 = (db_DetaXSS2 - db_DetaYSS2) * cos(3.142/180 * 45);
+			db_DetaXRB2 = db_DetaXSS2 * cos(3.142 / 4);
+			db_DetaYRB2 = db_DetaYSS2 * cos(3.142 / 4);
 
 			db_r1 = sqrt(
 					(db_DetaYSS1 * db_DetaYSS1) + (db_DetaXSS1 * db_DetaXSS1));
