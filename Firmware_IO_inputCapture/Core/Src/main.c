@@ -68,7 +68,7 @@
 #define MEASUREMENT_1_FILE_NAME		"measurement1.csv"
 #define MEASUREMENT_2_FILE_NAME		"measurement2.csv"
 
-#define EMPTY			-1 //this is the value return when at address of flash is empty data, this must be modify by other compiler
+#define EMPTY			-1 //this is the value return when at address of flash is empty data
 
 #define MAX_PERIOD		htim1.Init.Period
 
@@ -156,7 +156,7 @@ void Callback_IPConflict(void) {
 
 }
 
-static void write_SDCard(dataMeasure data, char *fileName);
+static void write_SDCard(dataMeasure data, char *fileName,uint8_t measurementIndex);
 static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex);
 
 static void W5500_init();
@@ -179,7 +179,8 @@ static void app_Init(void);
 static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex, uint8_t showSetCalib);
 static void app_SettingVDLRZ(void);
 static void updateMBRegister(void);
-void app_timerStart();
+static void app_timerStart();
+static void app_writeTitleCSV();//write title to file
 
 /*----------cycle measurement function---------*/
 CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementIndex);
@@ -1094,10 +1095,10 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 #endif
 }
 
-static void write_SDCard(dataMeasure data, char *fileName) {
+static void write_SDCard(dataMeasure data, char *fileName, uint8_t measurementIndex) {
 	FATFS FatFs;
 	FIL fil;
-	char buff[110];
+	char buff[110], RJudg[3]=" ", ZJudg[3]=" ";
 	unsigned int BytesWr;
 	if(f_mount(&FatFs, "", 0) != FR_OK)//mount SD card
 		return;
@@ -1112,29 +1113,80 @@ static void write_SDCard(dataMeasure data, char *fileName) {
 		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
-	uint8_t retry = 0;
-	do {
-		if (f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE)
-				== FR_OK) //In this mode, it will create the file if file not existed
-		 {
-			sprintf(buff,
-					"20%02u/%02u/%02u - %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
-					data.time.year, data.time.month, data.time.day,
-					data.time.hour, data.time.minute, data.coordinates.R,
-					data.coordinates.X, data.coordinates.Y, data.coordinates.Z,
-					data.coordinates.aX, data.coordinates.aY, data.mode);
-			f_lseek(&fil, f_size(&fil));
-			f_write(&fil, buff, strlen(buff), &BytesWr);
-			f_close(&fil);
-			break;
+	if(measurementIndex == MEASUREMENT_1)
+	{
+		if(moutput.out3 == _ON)
+		{
+			strcpy(ZJudg,"NG");
 		}
 		else
-			retry++;
-	} while (retry < 5);
-	if (f_mount(NULL, "", 0) != FR_OK)
-		return;
+		{
+			strcpy(ZJudg,"OK");
+		}
+
+		if(moutput.out2 == _ON)
+		{
+			strcpy(RJudg,"NG");
+		}
+		else
+		{
+			strcpy(RJudg,"OK");
+		}
+	}
 	else
-		__NOP();
+	{
+		if(moutput.out6 == _ON)
+		{
+			strcpy(ZJudg,"NG");
+		}
+		else
+		{
+			strcpy(ZJudg,"OK");
+		}
+
+		if(moutput.out5 == _ON)
+		{
+			strcpy(RJudg,"NG");
+		}
+		else
+		{
+			strcpy(RJudg,"OK");
+		}
+	}
+
+	if (f_open(&fil, fileName,FA_WRITE) == FR_OK)
+			{
+		if (data.mode == ZERROR2) {
+			sprintf(buff,
+					"20%02u/%02u/%02u - %02u:%02u,-,%hi,%hi,%hi,%hi,%hi,-,%s\n",
+					data.time.year, data.time.month, data.time.day,
+					data.time.hour, data.time.minute,
+					data.coordinates.X, data.coordinates.Y, data.coordinates.R,
+					data.coordinates.aX, data.coordinates.aY,RJudg);
+		}
+		else if (data.mode == ZONLY)
+		{
+			sprintf(buff, "20%02u/%02u/%02u - %02u:%02u,%hi,-,-,-,-,-,%s,-\n",
+					data.time.year, data.time.month, data.time.day,
+					data.time.hour, data.time.minute, data.coordinates.Z,ZJudg);
+		}
+		else
+		{
+			sprintf(buff,
+					"20%02u/%02u/%02u - %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%s,%s\n",
+					data.time.year, data.time.month, data.time.day,
+					data.time.hour, data.time.minute, data.coordinates.Z,
+					data.coordinates.X, data.coordinates.Y, data.coordinates.R,
+					data.coordinates.aX, data.coordinates.aY,ZJudg,RJudg);
+		}
+
+		f_lseek(&fil, f_size(&fil));
+		f_write(&fil, buff, strlen(buff), &BytesWr);
+		f_close(&fil);
+
+	}
+
+	f_mount(NULL, "", 0);
 }
 
 static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
@@ -1772,7 +1824,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 			}
 
 			if ((NONE != mdata.mode) && (CALIBSET == calibStatus)) {
-				write_SDCard(mdata, fileName);
+				write_SDCard(mdata, fileName,measurementIndex);
 			}
 			screen_DataMeasureType1(mdata, calibStatus, measurementIndex, NOT_SHOW_HIS);
 			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
@@ -1797,7 +1849,7 @@ static void app_Measurement(uint8_t measurementIndex) {
 
 		if(cycleMeasure == WAITMEASUREX1Y1 && CALIBSET == calibStatus) // write to SD card if only measure Z
 		{
-			write_SDCard(mdata, fileName);
+			write_SDCard(mdata, fileName,measurementIndex);
 		}
 
 
@@ -1954,14 +2006,14 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 			db_DetaYSS1 = buffer.D * sin(db_beta1 / 2)
 					* cos(db_beta1 / 2);
 			db_DetaXRB1 = (db_DetaXSS1 + db_DetaYSS1) * cos(3.142/180 * 45);
-			db_DetaYRB1 = (db_DetaXSS1 - db_DetaYSS1) * cos(3.142/180 * 45);
+			db_DetaYRB1 = -(db_DetaXSS1 - db_DetaYSS1) * cos(3.142/180 * 45);
 
 			db_DetaXSS2 = buffer.D * sin(db_anpha2 / 2)
 					* cos(db_anpha2 / 2);
 			db_DetaYSS2 = buffer.D * sin(db_beta2 / 2)
 					* cos(db_beta2 / 2);
 			db_DetaXRB2 = (db_DetaXSS2 + db_DetaYSS2) * cos(3.142/180 * 45);
-			db_DetaYRB2 = (db_DetaXSS2 - db_DetaYSS2) * cos(3.142/180 * 45);
+			db_DetaYRB2 = -(db_DetaXSS2 - db_DetaYSS2) * cos(3.142/180 * 45);
 
 			db_r1 = sqrt(
 					(db_DetaYSS1 * db_DetaYSS1) + (db_DetaXSS1 * db_DetaXSS1));
@@ -2205,8 +2257,9 @@ static void app_HisValue(uint8_t measurementIndex) {
 
 static void app_Init(void) {
 	LCD_Init();
-	W5500_init(); //if this line error -> check power of ethernet
+//	W5500_init(); //if this line error -> check power of ethernet
 	LCD_Clear();
+	app_writeTitleCSV();
 
 	VDRLZ_Input temp;
 	temp = FLASH_ReadVDRLZ();
@@ -2545,10 +2598,46 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 	}
 
 }
-void app_timerStart()
+static void app_timerStart()
 {
 	__HAL_TIM_SET_COUNTER(&htim1,0);
 	overflow = 0;
+}
+
+static void app_writeTitleCSV()
+{
+	FATFS FatFs;
+	FIL fil;
+	FILINFO fno;
+	char buff[110];
+	unsigned int BytesWr;
+
+	if (f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
+		return;
+
+	if(f_stat(MEASUREMENT_1_FILE_NAME, &fno)!= FR_OK) // measurement1.csv is not existed
+	{
+		if (f_open(&fil, MEASUREMENT_1_FILE_NAME,
+		FA_OPEN_ALWAYS | FA_WRITE) == FR_OK) {
+			sprintf(buff,
+					"Date & Time,Z,X,Y,R,A,B,Judgment of Z,Judgment of R\n");
+			f_write(&fil, buff, strlen(buff), &BytesWr);
+			f_close(&fil);
+		}
+	}
+
+	if(f_stat(MEASUREMENT_2_FILE_NAME, &fno)!= FR_OK) // measurement2.csv is not existed
+	{
+		if (f_open(&fil, MEASUREMENT_2_FILE_NAME,
+		FA_OPEN_ALWAYS | FA_WRITE) == FR_OK) {
+			sprintf(buff,
+					"Date & Time,Z,X,Y,R,A,B,Judgment of Z,Judgment of R\n");
+			f_write(&fil, buff, strlen(buff), &BytesWr);
+			f_close(&fil);
+		}
+	}
+	f_mount(NULL, "", 0);
+
 }
 /* USER CODE END 4 */
 
