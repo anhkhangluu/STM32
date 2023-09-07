@@ -2257,7 +2257,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 
 static void app_Init(void) {
 	LCD_Init();
-//	W5500_init(); //if this line error -> check power of ethernet
+	W5500_init(); //if this line error -> check power of ethernet
 	LCD_Clear();
 	app_writeTitleCSV();
 
@@ -2570,6 +2570,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 				== GPIO_PIN_RESET) {
 			MX_SPI2_Init();
 			MX_FATFS_Init();
+			app_writeTitleCSV();
 		} else {
 			HAL_SPI_DeInit(&hspi2);
 			MX_FATFS_DeInit();
