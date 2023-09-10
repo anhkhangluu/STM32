@@ -8,7 +8,7 @@
 
 #include "unittest.h"
 #include "rtc.h"
-dataMeasure data;
+
 
 void unitTest()
 {
@@ -18,6 +18,7 @@ void unitTest()
 //	data.time.month = 3;
 //	data.time.year =21;
 //	rtc_SetDateTime(data.time);
+
 
 while(1)
 {
