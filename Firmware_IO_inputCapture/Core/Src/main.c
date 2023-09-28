@@ -195,7 +195,7 @@ CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure,
 
 /*----------convert data------------*/
 static void float2String(int n, char *res) {
-	uint8_t i_length = 0, f_length = 0;
+	uint8_t f_length = 0;
 	int temp = 0;
 	// Extract integer part
 	int ipart = n / 100;
@@ -203,20 +203,16 @@ static void float2String(int n, char *res) {
 	// Extract floating part
 	int fpart = n % 100;
 
-	// count length of string
-	temp = ipart;
-	while (temp) {
-		i_length++;
-		temp /= 10;
-	}
-
 	temp = fpart;
 	while (temp) {
 		f_length++;
 		temp /= 10;
 	}
 
-	sprintf(res, "%d.%d", ipart, abs(fpart));
+	if(f_length == 1)
+		sprintf(res, "%d.0%d", ipart, abs(fpart));
+	else
+		sprintf(res, "%d.%d", ipart, abs(fpart));
 }
 
 static int self_atof(char *str)
@@ -1203,11 +1199,17 @@ static void write_SDCard(dataMeasure data, char *fileName,
 
 	//convert float to string
 	float2String(data.coordinates.X, X_str);
+	HAL_Delay(1);
 	float2String(data.coordinates.Z, Z_str);
+	HAL_Delay(1);
 	float2String(data.coordinates.Y, Y_str);
+	HAL_Delay(1);
 	float2String(data.coordinates.R, R_str);
+	HAL_Delay(1);
 	float2String(data.coordinates.aX, aX_str);
+	HAL_Delay(1);
 	float2String(data.coordinates.aY, aY_str);
+	HAL_Delay(1);
 
 	if (f_open(&fil, fileName, FA_WRITE) != FR_OK) {
 		//file not existed, write title to file
@@ -1306,11 +1308,17 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
 		data.mode = MEASUREALL;
 
 	data.coordinates.R = self_atof(R_str);
+	HAL_Delay(1);
 	data.coordinates.X = self_atof(X_str);
+	HAL_Delay(1);
 	data.coordinates.Y = self_atof(Y_str);
+	HAL_Delay(1);
 	data.coordinates.Z = self_atof(Z_str);
+	HAL_Delay(1);
 	data.coordinates.aX = self_atof(aX_str);
+	HAL_Delay(1);
 	data.coordinates.aY = self_atof(aY_str);
+	HAL_Delay(1);
 	return data;
 }
 
