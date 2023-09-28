@@ -1199,17 +1199,11 @@ static void write_SDCard(dataMeasure data, char *fileName,
 
 	//convert float to string
 	float2String(data.coordinates.X, X_str);
-	HAL_Delay(1);
 	float2String(data.coordinates.Z, Z_str);
-	HAL_Delay(1);
 	float2String(data.coordinates.Y, Y_str);
-	HAL_Delay(1);
 	float2String(data.coordinates.R, R_str);
-	HAL_Delay(1);
 	float2String(data.coordinates.aX, aX_str);
-	HAL_Delay(1);
 	float2String(data.coordinates.aY, aY_str);
-	HAL_Delay(1);
 
 	if (f_open(&fil, fileName, FA_WRITE) != FR_OK) {
 		//file not existed, write title to file
@@ -1308,17 +1302,11 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
 		data.mode = MEASUREALL;
 
 	data.coordinates.R = self_atof(R_str);
-	HAL_Delay(1);
 	data.coordinates.X = self_atof(X_str);
-	HAL_Delay(1);
 	data.coordinates.Y = self_atof(Y_str);
-	HAL_Delay(1);
 	data.coordinates.Z = self_atof(Z_str);
-	HAL_Delay(1);
 	data.coordinates.aX = self_atof(aX_str);
-	HAL_Delay(1);
 	data.coordinates.aY = self_atof(aY_str);
-	HAL_Delay(1);
 	return data;
 }
 
