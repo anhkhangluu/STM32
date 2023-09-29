@@ -2425,6 +2425,7 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure,
 	minput.in2 = _OFF;
 	msensor.s0 = _OFF;
 	msensor.s1 = _OFF;
+	mdata.coordinates.Z = 0;
 
 	while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
 		if (_ON == minput.in2) //C=1
