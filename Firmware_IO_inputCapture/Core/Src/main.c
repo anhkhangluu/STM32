@@ -209,10 +209,17 @@ static void float2String(int n, char *res) {
 		temp /= 10;
 	}
 
-	if(f_length == 1)
-		sprintf(res, "%d.0%d", ipart, abs(fpart));
-	else
-		sprintf(res, "%d.%d", ipart, abs(fpart));
+	if (n < 0 && ipart == 0) {
+		if (f_length == 1)
+			sprintf(res, "-%d.0%d", ipart, abs(fpart));
+		else
+			sprintf(res, "-%d.%d", ipart, abs(fpart));
+	} else {
+		if (f_length == 1)
+			sprintf(res, "%d.0%d", ipart, abs(fpart));
+		else
+			sprintf(res, "%d.%d", ipart, abs(fpart));
+	}
 }
 
 static int self_atof(char *str)
@@ -1225,7 +1232,6 @@ static void write_SDCard(dataMeasure data, char *fileName,
 				data.time.year, data.time.month, data.time.day, data.time.hour,
 				data.time.minute, Z_str, X_str, Y_str, R_str, aX_str, aY_str,
 				ZJudg, RJudg);
-
 	}
 
 	f_lseek(&fil, f_size(&fil));
