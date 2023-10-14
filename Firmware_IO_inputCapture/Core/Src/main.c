@@ -43,7 +43,9 @@
 #include "math.h"
 #include "rtc.h"
 #include "flash.h"
-#include "unittest.h"
+
+#include "flash_boot.h"
+//#include "unittest.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,6 +55,17 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+
+#ifdef BOOTLOADER
+#define VECTOR_TABLE_SIZE (31 + 1 + 7 + 9)        // 31 positive vectors, 0 vector, and 7 negative vectors (and extra 9 i dont know why)
+#define SYSCFG_CFGR1_MEM_MODE__MAIN_FLASH      0  // x0: Main Flash memory mapped at 0x0000 0000
+#define SYSCFG_CFGR1_MEM_MODE__SYSTEM_FLASH    1  // 01: System Flash memory mapped at 0x0000 0000
+#define SYSCFG_CFGR1_MEM_MODE__SRAM            3  // 11: Embedded SRAM mapped at 0x0000 0000
+#endif
+
+
+
 //#define CDC_DEBUG
 #define TIME_WAIT 100
 
@@ -62,10 +75,13 @@
 #define SHOW_HIS			1
 #define NOT_SHOW_HIS		0
 
+#define SHOW_SET_CALIB		1
+#define NOT_SHOW_SET_CALIB	0
+
 #define MEASUREMENT_1_FILE_NAME		"measurement1.csv"
 #define MEASUREMENT_2_FILE_NAME		"measurement2.csv"
 
-#define EMPTY			-1 //this is the value return when at address of flash is empty data, this must be modify by other compiler
+#define EMPTY			-1 //this is the value return when at address of flash is empty data
 
 #define MAX_PERIOD		htim1.Init.Period
 
@@ -95,6 +111,10 @@ TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+
+volatile uint32_t __attribute__((section(".ram_vector,\"aw\",%nobits @"))) ram_vector[VECTOR_TABLE_SIZE];
+extern volatile uint32_t g_pfnVectors[VECTOR_TABLE_SIZE];
+
 #define false 	0
 #define true 	1
 /*----------------------------DHCP - MODBUS-----------------------------*/
@@ -104,7 +124,7 @@ uint16_t usRegInputBuf[REG_INPUT_NREGS] = { 0 };
 uint16_t usRegHoldingBuf[REG_HOLDING_NREGS] = { 0 };
 uint8_t ucRegCoilsBuf[REG_COILS_SIZE] = { 0 };
 
-/*---------------------------------------------------*/
+/*----------------------------------------------------------------------*/
 
 /*----------------app.c----------------*/
 static dataMeasure mdata = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } };
@@ -118,10 +138,10 @@ volatile uint32_t captureTime_Y = 0;
 volatile int32_t overflow = 0;
 volatile uint32_t previousCapture = 0;
 
-volatile static uint8_t mainScreenFlag = 0; //use for reset data calib
+volatile static uint8_t mainScreenFlag = 0; //use for identify the screen
 volatile static button mbutton;
 volatile static input minput;
-volatile static sensor msensor = {_OFF,_OFF};
+volatile static sensor msensor = { _OFF, _OFF };
 static output moutput;
 static ledStatus mledStatus;
 MeasureValue mcalibValue;
@@ -129,6 +149,9 @@ MeasureValue mmeasureValue;
 
 volatile static setCalibValue calibStatus_1; //for measurement1
 volatile static setCalibValue calibStatus_2; //for measurement2
+
+static uint8_t meas1WrongPos = 0;
+static uint8_t meas2WrongPos = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -150,8 +173,8 @@ void Callback_IPConflict(void) {
 
 }
 
-
-static void write_SDCard(dataMeasure data, char *fileName);
+static void write_SDCard(dataMeasure data, char *fileName,
+		uint8_t measurementIndex);
 static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex);
 
 static void W5500_init();
@@ -165,23 +188,105 @@ static void app_SetCalibValue(uint8_t measurementIndex);
 static void app_GetCalibValue(uint8_t measurementIndex);
 
 static void app_HisValue(uint8_t measurementIndex);
-static void app_ClearAllOutput(void);
 
 static optionScreen_e_t app_optionMenu(void);
 static void app_processOptionMenu(optionScreen_e_t optionMenu);
 static void app_ShowIP(void);
 static void app_Init(void);
-static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex);
+static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex,
+		uint8_t showSetCalib);
 static void app_SettingVDLRZ(void);
 static void updateMBRegister(void);
-void app_timerStart();
+static void app_timerStart();
 
 /*----------cycle measurement function---------*/
-CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementIndex);
-CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex, setCalibValue calibStatus);
-CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurementIndex);
-CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurementIndex);
+CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex);
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex, setCalibValue calibStatus);
+CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex);
+CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex);
 
+/*----------convert data------------*/
+static void float2String(int n, char *res) {
+	uint8_t f_length = 0;
+	int temp = 0;
+	// Extract integer part
+	int ipart = n / 100;
+
+	// Extract floating part
+	int fpart = n % 100;
+
+	temp = fpart;
+	while (temp) {
+		f_length++;
+		temp /= 10;
+	}
+
+	if (n < 0 && ipart == 0) {
+		if (f_length == 1)
+			sprintf(res, "-%d.0%d", ipart, abs(fpart));
+		else
+			sprintf(res, "-%d.%d", ipart, abs(fpart));
+	} else {
+		if (f_length == 1)
+			sprintf(res, "%d.0%d", ipart, abs(fpart));
+		else
+			sprintf(res, "%d.%d", ipart, abs(fpart));
+	}
+}
+
+static int self_atof(char *str)
+{
+	int sign = 1;
+	float result = 0, fraction = 0;
+	uint8_t decimalPlace = 0;
+	uint8_t parsingFraction = 0;
+
+    if (*str == '-') {
+        sign = -1;
+        str++;
+    }
+
+	while (*str && *str != '\0') {
+		if (*str == '.') {
+			parsingFraction = 1;
+			str++;
+			continue;
+		}
+
+		if (*str >= '0' && *str <= '9') {
+			if (parsingFraction) {
+				fraction = fraction * 10 + (*str - '0');
+				decimalPlace++;
+			} else {
+				result = result * 10 + (*str - '0');
+			}
+		} else {
+			// Handle invalid characters or other formats (scientific notation, etc.) as needed.
+			// You can add error handling here.
+		}
+
+		str++;
+	}
+
+    // Adjust for the decimal point
+     while (decimalPlace > 0) {
+         fraction /= 10;
+         decimalPlace--;
+     }
+
+     result += fraction;
+     return (int)(result * sign * 100);
+}
+
+#ifdef BOOTLOADER
+uint8_t flagReset = false;
+uint8_t flagSendLoop = false;
+uint8_t dataLoop[] = {0x18, 0x04};
+#endif
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -196,6 +301,17 @@ CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurement
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+	int32_t __time = 0;
+#ifdef BOOTLOADER
+	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;  // early enable to ensure clock is up and running when it comes to usage
+
+	    for (uint32_t i = 0; i < VECTOR_TABLE_SIZE; i++) {//copy vector table
+	      ram_vector[i] = g_pfnVectors[i];
+	    }
+
+	    SYSCFG->CFGR1 = (SYSCFG->CFGR1 & ~SYSCFG_CFGR1_MEM_MODE) | (SYSCFG_CFGR1_MEM_MODE__SRAM * SYSCFG_CFGR1_MEM_MODE_0);  // remap 0x0000000 to RAM
+
+#endif
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -231,14 +347,12 @@ int main(void)
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
 	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_2);
 
-	HAL_TIM_Base_Start(&htim3);
 	HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
 
-	HAL_TIM_Base_Start(&htim6);//timer using for delay in LCD
+	HAL_TIM_Base_Start(&htim6); //timer using for delay in LCD
 
 #if 0
 	for (int  i = 0;  i < 10; ++ i) {
-
 
 	dataMeasure _data,__data;
 	_data.coordinates.R = 100;
@@ -255,11 +369,16 @@ int main(void)
 	_data.mode = 4;
 
 	write_SDCard(_data, MEASUREMENT_1_FILE_NAME);
-//	process_SD_Card(_data, MEASUREMENT_1_FILE_NAME);
+
+
 	__data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
-//	app_GotoMainScreen(CALIBSET, MEASUREMENT_1);
+
 	screen_DataMeasureType1(__data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
-	HAL_Delay(500);
+	HAL_SPI_DeInit(&hspi2);
+	MX_FATFS_DeInit();
+	HAL_Delay(1000);
+	MX_SPI2_Init();
+	MX_FATFS_Init();
 	dataMeasure ___data,____data;
 	___data.coordinates.R = 100;
 	___data.coordinates.X = -56;
@@ -275,18 +394,26 @@ int main(void)
 	___data.mode = 4;
 
 	write_SDCard(___data, MEASUREMENT_1_FILE_NAME);
-//	process_SD_Card(__data, MEASUREMENT_1_FILE_NAME);
+
+	HAL_Delay(100);
 	____data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
 	screen_DataMeasureType1(____data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
 	}
 	while(1);
 #endif
 
-
 #if 0
-	TIM1->CNT = 0;
 
-	unitTest();
+	int x = -222;
+	char X_str[9];
+
+
+	ftoa(x, X_str);
+
+	while(1)
+	{
+
+	}
 #endif
 	app_Init();
 
@@ -296,10 +423,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
 	while (1) {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		int32_t __time = 0;
+
 		minput = io_getInput();
 		mbutton = io_getButton();
 
@@ -312,43 +440,68 @@ int main(void)
 			minput.in0 = _OFF;
 			app_Measurement(MEASUREMENT_1); //measurement 1
 		}
+
 		else if (_ON == minput.in1) {
 			minput.in1 = _OFF;
 			app_Measurement(MEASUREMENT_2); //measurement 2
 		}
 
-		if (_ON == mbutton.reset) { //reset datacalib
+		if (_ON == mbutton.reset || GET_IN3 == 0) { //reset datacalib
 			__time = 0;
-			/*
-			 do
-			 {
-			 HAL_Delay(10);
-			 _time++;
-			 mbutton = io_getButton();
-			 }while(_ON == mbutton.reset && _time < TIMER_RESET_CALIB);*/
-
 			app_timerStart();
-			while (io_getButton().reset == _ON && __time < TIMER_RESET_CALIB) {
-				__time = (overflow - 1) * MAX_PERIOD
-						+ __HAL_TIM_GET_COUNTER(&htim1);
-
-				if (__time >= TIMER_RESET_CALIB /*10sec*/) { //long press button in 10sec
-					MeasureValue vl = { 0, 0, 0, 0, 0 };
-					DBG("Clear DataCalib by RESET button\n");
-					if (mainScreenFlag == MEASUREMENT_1) {
-						FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
+			while (io_getButton().reset == _ON)
+				;
+			__time =
+					(overflow - 1) * MAX_PERIOD + __HAL_TIM_GET_COUNTER(&htim1);
+			if (GET_IN3 == 0
+					|| (__time >= TIMER_CLEAR_MEAS_WRONG_POS
+							&& __time < TIMER_RESET_CALIB)) {
+				if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
+					meas1WrongPos = 0;
+					moutput.out2 = _OFF;
+					moutput.out3 = _OFF;
+					io_setOutput(moutput, ucRegCoilsBuf);
+					if (calibStatus_1 == CALIBSET)
+						mledStatus.led1 = _ON;
+					else
 						mledStatus.led1 = _OFF;
-						io_setLedStatus(mledStatus, ucRegCoilsBuf);
-						calibStatus_1 = CALIBRESET;
-						app_GotoMainScreen(CALIBRESET, MEASUREMENT_1);
-					} else {
-						FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					app_GotoMainScreen(CALIBSET, MEASUREMENT_1,
+							NOT_SHOW_SET_CALIB);
+				} else if (mainScreenFlag == MEASUREMENT_2
+						&& meas2WrongPos == 1) {
+					meas2WrongPos = 0;
+					moutput.out5 = _OFF;
+					moutput.out6 = _OFF;
+					io_setOutput(moutput, ucRegCoilsBuf);
+					if (calibStatus_2 == CALIBSET)
+						mledStatus.led2 = _ON;
+					else
 						mledStatus.led2 = _OFF;
-						io_setLedStatus(mledStatus, ucRegCoilsBuf);
-						calibStatus_2 = CALIBRESET;
-						app_GotoMainScreen(CALIBRESET, MEASUREMENT_2);
-					}
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					app_GotoMainScreen(CALIBSET, MEASUREMENT_2,
+							NOT_SHOW_SET_CALIB);
+				} else {
 
+				}
+
+			} else if (__time >= TIMER_RESET_CALIB /*10sec*/) { //long press button in 10sec
+				MeasureValue vl = { 0, 0, 0, 0, 0 };
+				DBG("Clear DataCalib by RESET button\n");
+				if (mainScreenFlag == MEASUREMENT_1) {
+					FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
+					mledStatus.led1 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					calibStatus_1 = CALIBRESET;
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_1,
+					NOT_SHOW_SET_CALIB);
+				} else {
+					FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
+					mledStatus.led2 = _OFF;
+					io_setLedStatus(mledStatus, ucRegCoilsBuf);
+					calibStatus_2 = CALIBRESET;
+					app_GotoMainScreen(CALIBRESET, MEASUREMENT_2,
+					NOT_SHOW_SET_CALIB);
 				}
 			}
 		}
@@ -366,12 +519,17 @@ void SystemClock_Config(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
+  /** Configure LSE Drive Capability
+  */
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_HIGH);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -393,7 +551,7 @@ void SystemClock_Config(void)
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_USART2
                               |RCC_PERIPHCLK_RTC;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
 
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
@@ -441,41 +599,25 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x10;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x1;
+  sTime.Hours = 10;
+  sTime.Minutes = 0;
+  sTime.Seconds = 1;
   sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
   sDate.WeekDay = RTC_WEEKDAY_MONDAY;
   sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 0x1;
-  sDate.Year = 0x1;
+  sDate.Date = 1;
+  sDate.Year = 1;
 
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
-	sTime.Hours = mtime.hour;
-	sTime.Minutes = mtime.minute;
-	sTime.Seconds = 0x0;
-	sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-	sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
-		Error_Handler();
-	}
-	sDate.WeekDay = RTC_WEEKDAY_MONDAY; //dont care
-	sDate.Month = mtime.month;
-	sDate.Date = mtime.day;
-	sDate.Year = mtime.year;
-
-	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
-		Error_Handler();
-	}
 #endif
   /* USER CODE END RTC_Init 2 */
 
@@ -544,7 +686,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -644,9 +786,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 47000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
+  htim3.Init.Period = 1000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -769,9 +911,9 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
@@ -886,7 +1028,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : SD_Detect_Pin */
+  GPIO_InitStruct.Pin = SD_Detect_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(SD_Detect_GPIO_Port, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
+
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
@@ -1063,12 +1214,15 @@ eMBErrorCode eMBRegDiscreteCB(UCHAR *pucRegBuffer, USHORT usAddress,
 #endif
 }
 
-static void write_SDCard(dataMeasure data, char *fileName) {
+static void write_SDCard(dataMeasure data, char *fileName,
+		uint8_t measurementIndex) {
 	FATFS FatFs;
 	FIL fil;
-	char buff[110];
+	char buff[110], RJudg[3] = " ", ZJudg[3] = " ";
+	char X_str[9], Y_str[9], Z_str[9], R_str[9], aX_str[9], aY_str[9];
 	unsigned int BytesWr;
-	if(f_mount(&FatFs, "", 0) != FR_OK)//mount SD card
+
+	if (f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
 		return;
 #if 0	//turn on this macro if you want to check the free space of SD card
 		DWORD fre_clust;
@@ -1081,19 +1235,65 @@ static void write_SDCard(dataMeasure data, char *fileName) {
 		totalSpace = (uint32_t) ((FatFs->n_fatent - 2) * FatFs->csize * 0.5);
 		freeSpace = (uint32_t) (fre_clust * FatFs->csize * 0.5);
 #endif
-	if (f_open(&fil, fileName, FA_READ | FA_OPEN_ALWAYS | FA_WRITE) == FR_OK) //In this mode, it will create the file if file not existed
-			{
-		sprintf(buff,
-				"20%02u/%02u/%02u - %02u:%02u,%hi,%hi,%hi,%hi,%hi,%hi,%u\n",
-				data.time.year, data.time.month, data.time.day, data.time.hour,
-				data.time.minute, data.coordinates.R, data.coordinates.X,
-				data.coordinates.Y, data.coordinates.Z, data.coordinates.aX,
-				data.coordinates.aY, data.mode);
-		f_lseek(&fil, f_size(&fil));
-		f_write(&fil, buff, strlen(buff), &BytesWr);
-		f_close(&fil);
+	if (measurementIndex == MEASUREMENT_1) {
+		if (moutput.out3 == _ON) {
+			strcpy(ZJudg, "NG");
+		} else {
+			strcpy(ZJudg, "OK");
+		}
 
+		if (moutput.out2 == _ON) {
+			strcpy(RJudg, "NG");
+		} else {
+			strcpy(RJudg, "OK");
+		}
+	} else {
+		if (moutput.out6 == _ON) {
+			strcpy(ZJudg, "NG");
+		} else {
+			strcpy(ZJudg, "OK");
+		}
+
+		if (moutput.out5 == _ON) {
+			strcpy(RJudg, "NG");
+		} else {
+			strcpy(RJudg, "OK");
+		}
 	}
+
+	//convert float to string
+	float2String(data.coordinates.X, X_str);
+	float2String(data.coordinates.Z, Z_str);
+	float2String(data.coordinates.Y, Y_str);
+	float2String(data.coordinates.R, R_str);
+	float2String(data.coordinates.aX, aX_str);
+	float2String(data.coordinates.aY, aY_str);
+
+	if (f_open(&fil, fileName, FA_WRITE) != FR_OK) {
+		//file not existed, write title to file
+		f_open(&fil, fileName, FA_OPEN_ALWAYS | FA_WRITE); //create file
+		sprintf(buff, "Date & Time,Z,X,Y,R,A,B,Judgment of Z,Judgment of R\n");
+		f_write(&fil, buff, strlen(buff), &BytesWr);
+	}
+
+	if (data.mode == ZERROR2) {
+		sprintf(buff, "20%02u/%02u/%02u - %02u:%02u,-,%s,%s,%s,%s,%s,-,%s\n",
+				data.time.year, data.time.month, data.time.day, data.time.hour,
+				data.time.minute, X_str, Y_str, R_str, aX_str, aY_str, RJudg);
+	} else if (data.mode == ZONLY) {
+		sprintf(buff, "20%02u/%02u/%02u - %02u:%02u,%s,-,-,-,-,-,%s,-\n",
+				data.time.year, data.time.month, data.time.day, data.time.hour,
+				data.time.minute, Z_str, ZJudg);
+	} else {
+		sprintf(buff, "20%02u/%02u/%02u - %02u:%02u,%s,%s,%s,%s,%s,%s,%s,%s\n",
+				data.time.year, data.time.month, data.time.day, data.time.hour,
+				data.time.minute, Z_str, X_str, Y_str, R_str, aX_str, aY_str,
+				ZJudg, RJudg);
+	}
+
+	f_lseek(&fil, f_size(&fil));
+	f_write(&fil, buff, strlen(buff), &BytesWr);
+	f_close(&fil);
 	f_mount(NULL, "", 0);
 }
 
@@ -1101,74 +1301,93 @@ static dataMeasure read_SDCard(char *fileName, uint8_t lineIndex) {
 	FATFS FatFs;
 	FIL fil;
 	char buff[80];
-	dataMeasure data = {0};
-	
+	dataMeasure data = { 0 };
+	char X_str[9], Y_str[9], Z_str[9], R_str[9], aX_str[9], aY_str[9];
 	unsigned int totalLines = 0;
+	unsigned short int year, month, day, hour, minute;
 
-	if(f_mount(&FatFs, "", 1) != FR_OK) //mount SD card
+	if (f_mount(&FatFs, "", 0) != FR_OK) //mount SD card
 		return data;
-	if(f_open(&fil, fileName, FA_READ)!= FR_OK)
+	if (f_open(&fil, fileName, FA_READ) != FR_OK)
 		return data;
 
 	// Count the total number of lines in the file
-    while (f_gets(buff, 100, &fil) != FR_OK) {
-    	totalLines++;
-    }
+	while (f_gets(buff, 100, &fil) != FR_OK) {
+		totalLines++;
+	}
 
-    f_lseek(&fil, 0); // move pointer to beginning of file
+	f_lseek(&fil, 0); // move pointer to beginning of file
 
-    while(totalLines - lineIndex > 0)
-    {
-    	totalLines --;
-    	f_gets(buff, sizeof(buff), &fil);
-    }
-    f_close(&fil);
-    f_mount(NULL, "", 0);
-//    uint8_t itemparse = sscanf(buff, "20%hhi-%hhi-%hhi %hhi:%hhi,%hi,%hi,%hi,%hi,%hi,%hi,%hhi\n", &data->time.year, &data->time.month, &data->time.day, &data->time.hour,
-//			&data->time.minute, &data->coordinates.R, &data->coordinates.X,
-//			&data->coordinates.Y, &data->coordinates.Z, &data->coordinates.aX,
-//			&data->coordinates.aY, &data->mode);
-    unsigned short int  year,month,day,hour,minute;
-//    char _buff[] = "2021-7-24 12:34,100,200,300,400,500,600,1";
-    char *token = strtok(buff, ",");
-    sscanf(token, "20%hu/%hu/%hu - %hu:%hu", &year, &month, &day, &hour,
-    			&minute);
+	while (totalLines - lineIndex > 0) {
+		totalLines--;
+		f_gets(buff, sizeof(buff), &fil);
+	}
+	f_close(&fil);
+	if (f_mount(NULL, "", 0) != FR_OK) //unmount fatfs
+		return data;
 
-    data.time.day = (uint8_t)day;
-    data.time.hour = (uint8_t)hour;
-    data.time.minute = (uint8_t)minute;
-    data.time.month = (uint8_t)month;
-    data.time.year = (uint8_t)year;
+	char *token = strtok(buff, ",");
+	sscanf(token, "20%hu/%hu/%hu - %hu:%hu", &year, &month, &day, &hour,
+			&minute);
+
+	data.time.day = (uint8_t) day;
+	data.time.hour = (uint8_t) hour;
+	data.time.minute = (uint8_t) minute;
+	data.time.month = (uint8_t) month;
+	data.time.year = (uint8_t) year;
 
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hi", &data.coordinates.R);
+	sscanf(token, "%s", Z_str);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hi", &data.coordinates.X);
+	sscanf(token, "%s", X_str);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hi", &data.coordinates.Y);
+	sscanf(token, "%s", Y_str);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hi", &data.coordinates.Z);
+	sscanf(token, "%s", R_str);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hi", &data.coordinates.aX);
+	sscanf(token, "%s", aX_str);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hi", &data.coordinates.aY);
+	sscanf(token, "%s", aY_str);
 	token = strtok(NULL, ",");
 
-	sscanf(token, "%hhu", &data.mode);
+	//get mode
+	if(Z_str[1] == '\0')
+		data.mode = ZERROR2;
+	else if (X_str[1] == '\0')
+		data.mode = ZONLY;
+	else
+		data.mode = MEASUREALL;
+
+	data.coordinates.R = self_atof(R_str);
+	data.coordinates.X = self_atof(X_str);
+	data.coordinates.Y = self_atof(Y_str);
+	data.coordinates.Z = self_atof(Z_str);
+	data.coordinates.aX = self_atof(aX_str);
+	data.coordinates.aY = self_atof(aY_str);
 	return data;
 }
-
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) { //should check
 	if (htim == &htim1) {
 		overflow++;
 //		updateMBRegister(); //update modbus register every 100us
+	}
+
+	if (htim == &htim3) {
+		if (meas1WrongPos)
+			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+		if (meas2WrongPos)
+			HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+		if (meas1WrongPos == 0 && meas2WrongPos == 0) {
+			HAL_TIM_Base_Stop_IT(&htim3);
+		}
+
 	}
 }
 static void app_SettingVDLRZ(void) {
@@ -1330,7 +1549,7 @@ static void app_SettingVDLRZ(void) {
 				if (_ON == mbutton.reset) {
 					while (_ON == io_getButton().reset)
 						;
-					buffer.Z -=0.1;
+					buffer.Z -= 0.1;
 					screen_setVDRLZ(buffer, Z_set);
 					HAL_Delay(TIME_WAIT);
 				}
@@ -1349,7 +1568,7 @@ static void app_SettingVDLRZ(void) {
 		}
 	} while (exit == 0);
 	FLASH_WriteVDRLZ(&buffer);
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1); // main screen
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB); // main screen
 }
 
 static void app_SettingRtc(void) {
@@ -1444,7 +1663,7 @@ static void app_SettingRtc(void) {
 				if (_ON == mbutton.set) {
 					while (_ON == io_getButton().set)
 						;
-					mtime.day ++;
+					mtime.day++;
 					if (31 < mtime.day)
 						mtime.day = 1;
 					screen_setDateTime(mtime, SET_DAY);
@@ -1560,7 +1779,7 @@ static void app_SettingRtc(void) {
 		}
 	} while (0 == exit);
 	rtc_SetDateTime(mtime);
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1); // main screen
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB); // main screen
 }
 
 static void app_Measurement(uint8_t measurementIndex) {
@@ -1591,28 +1810,59 @@ static void app_Measurement(uint8_t measurementIndex) {
 	setCalibValue calibStatus = 0;
 	char fileName[17];
 
-	if(measurementIndex == MEASUREMENT_1)
-	{
+	if (measurementIndex == MEASUREMENT_1) {
+		moutput.out2 = _OFF; //reset
+		moutput.out3 = _OFF; //reset
+		meas1WrongPos = 0;   //reset
+		io_setOutput(moutput, ucRegCoilsBuf);
+
 		DBG("START MEASUREMENT 1\r\n");
 		calibStatus = calibStatus_1;
 		strcpy(fileName, MEASUREMENT_1_FILE_NAME);
+		if (calibStatus == CALIBSET) {
+			mledStatus.led1 = _ON;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+		}
+	} else {
+		moutput.out5 = _OFF;
+		moutput.out6 = _OFF;
+		meas2WrongPos = 0;
+		io_setOutput(moutput, ucRegCoilsBuf);
 
-	}
-	else
-	{
 		DBG("START MEASUREMENT 2\r\n");
 		calibStatus = calibStatus_2;
 		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
-
+		if (calibStatus == CALIBSET) {
+			mledStatus.led2 = _ON;
+			io_setLedStatus(mledStatus, ucRegCoilsBuf);
+		}
 	}
-//	DBG("==START MEASUREMENT==\r\n");
+
+	HAL_TIM_Base_Stop_IT(&htim3); //stop blink led for measurement
+	screen_waitMeasurement(measurementIndex);
+
 	cycleMeasure = meas_checkSensor(cycleMeasure, measurementIndex);
 	if (cycleMeasure == _ERROR) {
 		DBG("cycleMeasure == _ERROR");
 	}
-	cycleMeasure = meas_measurementZ(cycleMeasure, measurementIndex, calibStatus);
+	cycleMeasure = meas_measurementZ(cycleMeasure, measurementIndex,
+			calibStatus);
 	cycleMeasure = meas_measurementX1Y1(cycleMeasure, measurementIndex);
 	cycleMeasure = meas_measurementX2Y2(cycleMeasure, measurementIndex);
+
+	if (cycleMeasure == _ERROR_XY) {
+		if (measurementIndex == MEASUREMENT_1) {
+			moutput.out2 = _ON;
+			moutput.out3 = _ON;
+			screen_errorXY(MEASUREMENT_1);
+		} else {
+			moutput.out5 = _ON;
+			moutput.out6 = _ON;
+			screen_errorXY(MEASUREMENT_1);
+		}
+//		moutput.out0 = _OFF;
+		io_setOutput(moutput, ucRegCoilsBuf);
+	}
 
 	while (cycleMeasure == _ERROR_XY) {
 		DBG("Sensor X/Y Error");
@@ -1625,36 +1875,34 @@ static void app_Measurement(uint8_t measurementIndex) {
 		mledStatus.led2 = _OFF;
 		io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
-		moutput.out2 = _ON;
-		moutput.out3 = _ON;
-		io_setOutput(moutput, ucRegCoilsBuf);
-
-		//TODO: man hinh hien thi ERROR
-
 		if (io_getButton().reset == _ON) {
 			app_timerStart();
-			while (io_getButton().reset == _ON && _time<TIMER_RESET_ERRORXY)
-				_time = (overflow-1) * MAX_PERIOD + __HAL_TIM_GET_COUNTER(&htim1);
+			while (io_getButton().reset == _ON && _time < TIMER_RESET_ERRORXY)
+				_time = (overflow - 1) * MAX_PERIOD
+						+ __HAL_TIM_GET_COUNTER(&htim1);
 		}
-		if (_time > TIMER_RESET_ERRORXY) //time press reset button longer than 2sec /// TODO
-				{
-			if(calibStatus_1 == CALIBSET)
+		if (_time > TIMER_RESET_ERRORXY) {
+			if (calibStatus_1 == CALIBSET)
 				mledStatus.led1 = _ON;
 			else
 				mledStatus.led1 = _OFF;
 
-			if(calibStatus_2 == CALIBSET)
+			if (calibStatus_2 == CALIBSET)
 				mledStatus.led2 = _ON;
 			else
 				mledStatus.led2 = _OFF;
 			io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
-			moutput.out2 = _OFF;
-			moutput.out3 = _OFF;
+			if (measurementIndex == MEASUREMENT_1) {
+				moutput.out2 = _OFF;
+				moutput.out3 = _OFF;
+			} else {
+				moutput.out5 = _OFF;
+				moutput.out6 = _OFF;
+			}
 			io_setOutput(moutput, ucRegCoilsBuf);
 			cycleMeasure = ERROR;
 		}
-
 	}
 
 	while (CALCULATORVALUE == cycleMeasure && (0 == GET_INPUT(measurementIndex))) {
@@ -1671,10 +1919,25 @@ static void app_Measurement(uint8_t measurementIndex) {
 			}
 			app_CalculatorValue(cycleMeasure, mdata.mode, measurementIndex);
 
-			if ((NONE != mdata.mode) && (CALIBSET == calibStatus)) {
-				write_SDCard(mdata, fileName);
+			if (moutput.out2 == _ON || moutput.out3 == _ON) {
+				meas1WrongPos = 1;
+				HAL_TIM_Base_Start_IT(&htim3); //start blink led
+			} else {
+				meas1WrongPos = 0;
 			}
-			screen_DataMeasureType1(mdata, calibStatus, measurementIndex, NOT_SHOW_HIS);
+
+			if (moutput.out5 == _ON || moutput.out6 == _ON) {
+				meas2WrongPos = 1;
+				HAL_TIM_Base_Start_IT(&htim3); //start blink led
+			} else {
+				meas2WrongPos = 0;
+			}
+
+			if ((NONE != mdata.mode) && (CALIBSET == calibStatus)) {
+				write_SDCard(mdata, fileName, measurementIndex);
+			}
+			screen_DataMeasureType1(mdata, calibStatus, measurementIndex,
+					NOT_SHOW_HIS);
 			while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 				;
 		}
@@ -1687,19 +1950,18 @@ static void app_Measurement(uint8_t measurementIndex) {
 	if (1 == GET_INPUT(measurementIndex) /*end of cycle measurement */) {
 		moutput.out0 = _OFF;
 		moutput.out1 = _OFF;
-		moutput.out2 = _OFF;
-		moutput.out3 = _OFF;
+//		moutput.out2 = _OFF;
+//		moutput.out3 = _OFF;
 		moutput.out4 = _OFF;
-		moutput.out5 = _OFF;
-		moutput.out6 = _OFF;
+//		moutput.out5 = _OFF;
+//		moutput.out6 = _OFF;
 		moutput.out7 = _OFF;
 		io_setOutput(moutput, ucRegCoilsBuf);
 
-		if(cycleMeasure == WAITMEASUREX1Y1 && CALIBSET == calibStatus) // write to SD card if only measure Z
-		{
-			write_SDCard(mdata, fileName);
+		if (cycleMeasure == WAITMEASUREX1Y1 && CALIBSET == calibStatus) // write to SD card if only measure Z
+				{
+			write_SDCard(mdata, fileName, measurementIndex);
 		}
-
 
 		if (cycleMeasure == FINISH && CALIBRESET == calibStatus) {
 			/*-----SET calib value -----*/
@@ -1713,41 +1975,25 @@ static void app_Measurement(uint8_t measurementIndex) {
 						&& (0 == mcalibValue.Y1) && (0 == mcalibValue.Y2)
 						&& (0 == mcalibValue.Z) && (ZERROR1 != mdata.mode)) {
 					app_SetCalibValue(measurementIndex);
-					if(measurementIndex == MEASUREMENT_1)
-					{
+					if (measurementIndex == MEASUREMENT_1) {
 						mledStatus.led1 = _ON;
 						calibStatus_1 = CALIBSET;
-					}
-					else
-					{
+					} else {
 						mledStatus.led2 = _ON;
 						calibStatus_2 = CALIBSET;
 					}
 					calibStatus = CALIBSET;
 					io_setLedStatus(mledStatus, ucRegCoilsBuf);
 					DBG("cycleMeasure = SET CALIB DONE\n");
-					app_CalculatorValue(FINISH, mdata.mode, measurementIndex);
 					mainScreenFlag = measurementIndex;
-					screen_DataMeasureType1(mdata, calibStatus, measurementIndex, NOT_SHOW_HIS);//in man hinh 0
-
+					app_GotoMainScreen(calibStatus, measurementIndex,
+							SHOW_SET_CALIB); //in man hinh 0
 				}
 			}
-		}
-		else
-			app_GotoMainScreen(calibStatus, measurementIndex);
+		} else
+			app_GotoMainScreen(calibStatus, measurementIndex,
+					NOT_SHOW_SET_CALIB);
 	}
-}
-
-static void app_ClearAllOutput(void) {
-	moutput.out0 = _OFF;
-	moutput.out1 = _OFF;
-	moutput.out2 = _OFF;
-	moutput.out3 = _OFF;
-	moutput.out4 = _OFF;
-	moutput.out5 = _OFF;
-	moutput.out6 = _OFF;
-	moutput.out7 = _OFF;
-	io_setOutput(moutput, ucRegCoilsBuf);
 }
 
 
@@ -1806,10 +2052,17 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 			DBG(buf);
 #endif
 			if ((db_DetaZ > buffer.Z) || (db_DetaZ < (-buffer.Z))) {
-				moutput.out3 = _ON;
+				if (measurementIndex == 1)
+					moutput.out3 = _ON;
+				else
+					moutput.out6 = _ON;
 			} else {
-				moutput.out3 = _OFF;
+				if (measurementIndex == 1)
+					moutput.out3 = _OFF;
+				else
+					moutput.out6 = _OFF;
 			}
+			io_setOutput(moutput, ucRegCoilsBuf);
 		}
 
 		/*calculator X Y*/
@@ -1838,24 +2091,20 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 					mmeasureValue.Y2, mcalibValue.Y2);
 			DBG(buf);
 #endif
-			db_anpha1 = (buffer.V * db_DetaTX1) / buffer.D;
-			db_beta1 = (buffer.V * db_DetaTY1) / buffer.D;
-			db_anpha2 = (buffer.V * db_DetaTX2) / buffer.D;
-			db_beta2 = (buffer.V * db_DetaTY2) / buffer.D;
+			db_anpha1 = 2 * (buffer.V * db_DetaTX1) / buffer.D;
+			db_beta1 = 2 * (buffer.V * db_DetaTY1) / buffer.D;
+			db_anpha2 = 2 * (buffer.V * db_DetaTX2) / buffer.D;
+			db_beta2 = 2 * (buffer.V * db_DetaTY2) / buffer.D;
 
-			db_DetaXSS1 = (2 * buffer.D) * sin(db_anpha1 / 2)
-					* cos(db_anpha1 / 2);
-			db_DetaYSS1 = (2 * buffer.D) * sin(db_beta1 / 2)
-					* cos(db_beta1 / 2);
-			db_DetaXRB1 = db_DetaXSS1 * cos(3.142 / 4);
-			db_DetaYRB1 = db_DetaYSS1 * cos(3.142 / 4);
+			db_DetaXSS1 = buffer.D * sin(db_anpha1 / 2) * cos(db_anpha1 / 2);
+			db_DetaYSS1 = buffer.D * sin(db_beta1 / 2) * cos(db_beta1 / 2);
+			db_DetaXRB1 = (db_DetaXSS1 + db_DetaYSS1) * cos(3.142 / 180 * 45);
+			db_DetaYRB1 = -(db_DetaXSS1 - db_DetaYSS1) * cos(3.142 / 180 * 45);
 
-			db_DetaXSS2 = (2 * buffer.D) * sin(db_anpha2 / 2)
-					* cos(db_anpha2 / 2);
-			db_DetaYSS2 = (2 * buffer.D) * sin(db_beta2 / 2)
-					* cos(db_beta2 / 2);
-			db_DetaXRB2 = db_DetaXSS2 * cos(3.142 / 4);
-			db_DetaYRB2 = db_DetaYSS2 * cos(3.142 / 4);
+			db_DetaXSS2 = buffer.D * sin(db_anpha2 / 2) * cos(db_anpha2 / 2);
+			db_DetaYSS2 = buffer.D * sin(db_beta2 / 2) * cos(db_beta2 / 2);
+			db_DetaXRB2 = (db_DetaXSS2 + db_DetaYSS2) * cos(3.142 / 180 * 45);
+			db_DetaYRB2 = -(db_DetaXSS2 - db_DetaYSS2) * cos(3.142 / 180 * 45);
 
 			db_r1 = sqrt(
 					(db_DetaYSS1 * db_DetaYSS1) + (db_DetaXSS1 * db_DetaXSS1));
@@ -1879,12 +2128,18 @@ void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,
 			mdata.coordinates.aY = (int16_t) (db_LYRB * 10.0);
 
 			if (db_r2 > buffer.R) {
-				moutput.out2 = _ON;
+				if (measurementIndex == 1)
+					moutput.out2 = _ON;
+				else
+					moutput.out5 = _ON;
 			} else {
-				moutput.out2 = _OFF;
+				if (measurementIndex == 1)
+					moutput.out2 = _OFF;
+				else
+					moutput.out5 = _OFF;
 			}
+			io_setOutput(moutput, ucRegCoilsBuf);
 		}
-		io_setOutput(moutput, ucRegCoilsBuf);
 	}
 }
 
@@ -1909,7 +2164,6 @@ static void app_GetCalibValue(uint8_t measurementIndex) {
 		mcalibValue.Z = 0;
 	}
 }
-
 
 static optionScreen_e_t app_optionMenu(void) {
 	optionScreen_e_t optionIndex = measurement1Setting;
@@ -1966,11 +2220,11 @@ static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	switch (optionMenu) {
 	case measurement1Setting:
 
-		app_GotoMainScreen(calibStatus_1, MEASUREMENT_1);
+		app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 		break;
 	case measurement2Setting:
 
-		app_GotoMainScreen(calibStatus_2, MEASUREMENT_2);
+		app_GotoMainScreen(calibStatus_2, MEASUREMENT_2, NOT_SHOW_SET_CALIB);
 		break;
 	case measurement1HisList:
 		app_HisValue(MEASUREMENT_1);
@@ -2004,7 +2258,7 @@ static void app_ShowIP(void) {
 		}
 	} while (exit == 0);
 
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1);
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 }
 
 static void app_HisValue(uint8_t measurementIndex) {
@@ -2013,12 +2267,9 @@ static void app_HisValue(uint8_t measurementIndex) {
 	dataMeasure ldata;
 	char fileName[17];
 //	uint8_t u8_Led3 = mledStatus.led3;
-	if(measurementIndex == MEASUREMENT_1)
-	{
+	if (measurementIndex == MEASUREMENT_1) {
 		strcpy(fileName, MEASUREMENT_1_FILE_NAME);
-	}
-	else
-	{
+	} else {
 		strcpy(fileName, MEASUREMENT_2_FILE_NAME);
 	}
 	LCD_Clear();
@@ -2088,7 +2339,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 			exit = 1;
 		}
 	} while (exit == 0);
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1); // main screen
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB); // main screen
 }
 
 static void app_Init(void) {
@@ -2098,8 +2349,8 @@ static void app_Init(void) {
 
 	VDRLZ_Input temp;
 	temp = FLASH_ReadVDRLZ();
-	if(temp.D == 0xFFFFFFFF && temp.L == 0xFFFFFFFF && isnanf(temp.R) && temp.V == 0xFFFFFFFF && isnanf(temp.Z))
-	{
+	if (temp.D == 0xFFFFFFFF && temp.L == 0xFFFFFFFF && isnanf(temp.R)
+			&& temp.V == 0xFFFFFFFF && isnanf(temp.Z)) {
 		temp.V = 20;
 		temp.D = 50;
 		temp.R = 1.2;
@@ -2109,9 +2360,8 @@ static void app_Init(void) {
 	}
 
 	app_GetCalibValue(MEASUREMENT_1);
-	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0)
-			&& (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0)
-			&& (mcalibValue.Z == 0)) {
+	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0)
+			&& (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0)) {
 		mledStatus.led1 = _OFF;
 		calibStatus_1 = CALIBRESET;
 	} else {
@@ -2120,29 +2370,38 @@ static void app_Init(void) {
 	}
 
 	app_GetCalibValue(MEASUREMENT_2);
-    if((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0) && (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0))
-    {
-        mledStatus.led2 = _OFF;
-        calibStatus_2 = CALIBRESET;
-    }
-    else
-    {
-        mledStatus.led2 = _ON;
-        calibStatus_2 = CALIBSET;
-    }
+	if ((mcalibValue.X1 == 0) && (mcalibValue.X2 == 0) && (mcalibValue.Y1 == 0)
+			&& (mcalibValue.Y2 == 0) && (mcalibValue.Z == 0)) {
+		mledStatus.led2 = _OFF;
+		calibStatus_2 = CALIBRESET;
+	} else {
+		mledStatus.led2 = _ON;
+		calibStatus_2 = CALIBSET;
+	}
 
 	io_setLedStatus(mledStatus, ucRegCoilsBuf);
 
-	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1);
+	app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 }
-static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
+
+static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex,
+		uint8_t showSetCalib) {
 	uint8_t index = 0;
-	volatile dataMeasure data = {0};
+	volatile dataMeasure data = { 0 };
 	uint8_t exit = 0;
 
 	mainScreenFlag = measurementIndex; //use for reset calib
+	if (showSetCalib == NOT_SHOW_SET_CALIB) {
+		if (measurementIndex == MEASUREMENT_1) {
+			data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
+		} else {
+			data = read_SDCard(MEASUREMENT_2_FILE_NAME, index);
+		}
+	} else {
+		data.time = rtc_Now();
+		data.mode = 4;
+	}
 
-	data = read_SDCard(MEASUREMENT_1_FILE_NAME, index);
 	screen_DataMeasureType1(data, option, measurementIndex, NOT_SHOW_HIS);
 
 	do {
@@ -2168,15 +2427,16 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex) {
 			break;
 		}
 
-	} while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1
-			&& _OFF == mbutton.reset);
+	}
+	while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1
+			&& _OFF == mbutton.reset && GET_IN3 == 1);
+
 }
 
-CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
+CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex) {
 
-	while ((STOP == cycleMeasure) && (0 == GET_INPUT(measurementIndex)))
-	{
-		app_ClearAllOutput();
+	while ((STOP == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
 		minput.in0 = _OFF;
 		cycleMeasure = CLEARSENSOR;
 		moutput.out4 = _ON; // O7 ON start clear sensor
@@ -2187,16 +2447,8 @@ CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementInde
 	/********************************************## 3 ##*******************************************/
 	/*Waiting clear Sensor*/
 	while (CLEARSENSOR == cycleMeasure) {
-
-//		for(uint8_t i =0; i<200; i++)
-//		{
-//			HAL_Delay(10);
-//			if (1 == GET_INPUT(measurementIndex))
-//				break;
-//		}
-		HAL_Delay(2000);
-
-		if ((_OFF == msensor.s0) && (_OFF == msensor.s1)) {
+		HAL_Delay(2000); //delay 2s to check sensor
+		if ((1 == GET_SENSOR1) && (1 == GET_SENSOR0)) {
 			moutput.out0 = _ON;
 			moutput.out4 = _OFF; //turn off O7
 			io_setOutput(moutput, ucRegCoilsBuf);
@@ -2206,24 +2458,25 @@ CycleMeasure meas_checkSensor(CycleMeasure cycleMeasure, uint8_t measurementInde
 			moutput.out0 = _OFF;
 			moutput.out4 = _OFF; //turn off O7
 			io_setOutput(moutput, ucRegCoilsBuf);
-			cycleMeasure = _ERROR;
+			cycleMeasure = _ERROR_XY;
 			DBG("Check done - SENSOR [NOT] OK\r\n");
 		}
 	}
 	return cycleMeasure;
 }
 
-CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementIndex, setCalibValue calibStatus)
-{
+CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex, setCalibValue calibStatus) {
 	CycleMeasure cycleMeasureZ = MEASUREZ;
 	captureTime_X = 0;
 	captureTime_Y = 0;
 	minput.in2 = _OFF;
 	msensor.s0 = _OFF;
 	msensor.s1 = _OFF;
+	mdata.coordinates.Z = 0;
 
 	while ((WAITMEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
-		if(_ON == minput.in2) //C=1
+		if (_ON == minput.in2) //C=1
 				{
 			//start timer to measure Z
 			cycleMeasure = MEASUREZ;
@@ -2237,16 +2490,16 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 	while ((MEASUREZ == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
 		if ((_ON == msensor.s0) && (_ON == msensor.s1)
 				&& cycleMeasureZ == Z_NOT_OK) //C=2
-		{
+						{
 			msensor.s0 = _OFF;
 			msensor.s1 = _OFF;
-			mmeasureValue.Z = MAX(captureTime_X,captureTime_Y);
+			mmeasureValue.Z = MAX(captureTime_X, captureTime_Y);
 			cycleMeasureZ = Z_OK;
 			DBG("get measureValue Z in cycleMeasure = MEASUREZ\n");
 		}
 
 		if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2)) //else if ((MEASUREZ == cycleMeasure) && (_ON == minput.in2) && ((_OFF == msensor.s0) || (_OFF == msensor.s1))) //C=2
-		{
+				{
 			if (cycleMeasureZ != Z_OK) {
 				minput.in2 = _OFF;
 				moutput.out1 = _OFF;
@@ -2269,13 +2522,12 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 				DBG("(C=2) Measure Z - OK mdata.mode = ZONLY;\r\n");
 				while (0 == GET_IN2 && (0 == GET_INPUT(measurementIndex)))
 					;
-			}
-			else
+			} else
 				DBG("Not in case 1/2 of measurementZ");
 		}
 
-		if ((Z_DONE == cycleMeasureZ) && (1 == GET_IN2))//if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (_OFF == minput.in2))
-		{
+		if ((Z_DONE == cycleMeasureZ) && (1 == GET_IN2)) //if (((Z_OK == cycleMeasure) || (Z_NOT_OK == cycleMeasure)) && (_OFF == minput.in2))
+				{
 			cycleMeasure = WAITMEASUREX1Y1;
 			DBG("(C=2 cycleMeasure = WAITMEASUREX1Y1\r\n");
 		}
@@ -2283,12 +2535,14 @@ CycleMeasure meas_measurementZ(CycleMeasure cycleMeasure, uint8_t measurementInd
 	return cycleMeasure;
 }
 
-CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
+CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex) {
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
 	captureTime_X = 0;
 	captureTime_Y = 0;
-	while ((WAITMEASUREX1Y1 == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
+	while ((WAITMEASUREX1Y1 == cycleMeasure)
+			&& (0 == GET_INPUT(measurementIndex))) {
 		if (_ON == minput.in2) //C=3 Start timer
 				{
 			minput.in2 = _OFF;
@@ -2331,13 +2585,15 @@ CycleMeasure meas_measurementX1Y1(CycleMeasure cycleMeasure, uint8_t measurement
 	return cycleMeasure;
 }
 
-CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurementIndex) {
+CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure,
+		uint8_t measurementIndex) {
 	CycleMeasureSensor cycleMeasureX = SEN_STOP;
 	CycleMeasureSensor cycleMeasureY = SEN_STOP;
 	captureTime_X = 0;
 	captureTime_Y = 0;
 
-	while ((WAITMEASUREX2Y2 == cycleMeasure) && (0 == GET_INPUT(measurementIndex))) {
+	while ((WAITMEASUREX2Y2 == cycleMeasure)
+			&& (0 == GET_INPUT(measurementIndex))) {
 		if (_ON == minput.in2) //C=4
 				{
 			minput.in2 = _OFF;
@@ -2383,21 +2639,30 @@ CycleMeasure meas_measurementX2Y2(CycleMeasure cycleMeasure, uint8_t measurement
 
 static void updateMBRegister(void) {
 	uint16_t tempInput[REG_INPUT_NREGS] = { GET_SENSOR0, GET_SENSOR1, GET_IN0,
-			GET_IN1, GET_IN2, GET_IN3, GET_IN4, GET_IN5, GET_IN6, GET_IN7 };
+	GET_IN1, GET_IN2, GET_IN3, GET_IN4, GET_IN5, GET_IN6, GET_IN7 };
 	memcpy(usRegInputBuf, tempInput, sizeof(usRegInputBuf));
 
 //	modbus_tcps(HTTP_SOCKET, MBTCP_PORT); //instead of using eMBPoll()
 	eMBPoll();
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if(GPIO_Pin == IN2_Pin)
-	{
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+	if (GPIO_Pin == IN2_Pin) {
 		minput.in2 = _ON;
+		__HAL_TIM_SET_COUNTER(&htim1, 0);
 		overflow = 0; // reset
-		__HAL_TIM_SET_COUNTER(&htim1,0);
 		previousCapture = __HAL_TIM_GET_COUNTER(&htim1);
+	}
+
+	if (GPIO_Pin == SD_Detect_Pin) {
+		if (HAL_GPIO_ReadPin(SD_Detect_GPIO_Port, SD_Detect_Pin)
+				== GPIO_PIN_RESET) {
+			MX_SPI2_Init();
+			MX_FATFS_Init();
+		} else {
+			HAL_SPI_DeInit(&hspi2);
+			MX_FATFS_DeInit();
+		}
 	}
 }
 
@@ -2422,11 +2687,11 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 	}
 
 }
-void app_timerStart()
-{
-	__HAL_TIM_SET_COUNTER(&htim1,0);
+static void app_timerStart() {
+	__HAL_TIM_SET_COUNTER(&htim1, 0);
 	overflow = 0;
 }
+
 /* USER CODE END 4 */
 
 /**

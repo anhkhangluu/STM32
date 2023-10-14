@@ -1,0 +1,9 @@
+../screen/screen.c:21:6:screen_DataMeasureType1	160	static
+../screen/screen.c:93:6:screen_DataMeasureType2	64	static
+../screen/screen.c:141:6:screen_Time	104	static
+../screen/screen.c:154:6:screen_setDateTime	120	static
+../screen/screen.c:195:6:screen_OptionMenu	80	static
+../screen/screen.c:251:6:screen_showIP	96	static
+../screen/screen.c:263:6:screen_setVDRLZ	120	static
+../screen/screen.c:343:6:screen_waitMeasurement	112	static
+../screen/screen.c:361:6:screen_errorXY	112	static

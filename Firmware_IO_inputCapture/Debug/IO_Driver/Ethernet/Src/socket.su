@@ -1,0 +1,12 @@
+../IO_Driver/Ethernet/Src/socket.c:198:8:close	24	static
+../IO_Driver/Ethernet/Src/socket.c:105:8:socket	40	static
+../IO_Driver/Ethernet/Src/socket.c:241:8:listen	16	static
+../IO_Driver/Ethernet/Src/socket.c:257:8:connect	32	static
+../IO_Driver/Ethernet/Src/socket.c:297:8:disconnect	16	static
+../IO_Driver/Ethernet/Src/socket.c:317:9:send	40	static
+../IO_Driver/Ethernet/Src/socket.c:385:9:recv	40	static
+../IO_Driver/Ethernet/Src/socket.c:490:9:sendto	40	static
+../IO_Driver/Ethernet/Src/socket.c:594:9:recvfrom	48	static
+../IO_Driver/Ethernet/Src/socket.c:776:9:ctlsocket	8	static
+../IO_Driver/Ethernet/Src/socket.c:822:9:setsockopt	24	static
+../IO_Driver/Ethernet/Src/socket.c:875:9:getsockopt	16	static

@@ -1,0 +1,2 @@
+../rtc/rtc.c:9:6:rtc_SetDateTime	40	static
+../rtc/rtc.c:32:6:rtc_Now	40	static

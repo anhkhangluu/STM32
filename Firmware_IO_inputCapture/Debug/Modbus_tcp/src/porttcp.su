@@ -1,0 +1,6 @@
+../Modbus_tcp/src/porttcp.c:51:1:xMBTCPPortInit	8	static
+../Modbus_tcp/src/porttcp.c:77:6:vMBTCPPortClose	0	static
+../Modbus_tcp/src/porttcp.c:81:6:vMBTCPPortDisable	0	static
+../Modbus_tcp/src/porttcp.c:86:1:xMBTCPPortGetRequest	0	static
+../Modbus_tcp/src/porttcp.c:96:1:xMBTCPPortSendResponse	8	static
+../Modbus_tcp/src/porttcp.c:105:6:modbus_tcps	16	static

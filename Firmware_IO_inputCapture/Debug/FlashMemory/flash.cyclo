@@ -1,0 +1,6 @@
+flash.c:20:13:FLASH_ReadEntireMemory	2
+flash.c:54:13:FLASH_Write.constprop	3
+flash.c:76:6:FLASH_WriteDataCalib	3
+flash.c:93:14:FLASH_ReadDataCalib	1
+flash.c:106:6:FLASH_WriteVDRLZ	2
+flash.c:122:13:FLASH_ReadVDRLZ	1

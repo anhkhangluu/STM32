@@ -1,0 +1,9 @@
+screen.c:21:6:screen_DataMeasureType1	23
+screen.c:93:6:screen_DataMeasureType2	11
+screen.c:141:6:screen_Time	1
+screen.c:154:6:screen_setDateTime	6
+screen.c:195:6:screen_OptionMenu	13
+screen.c:251:6:screen_showIP	1
+screen.c:263:6:screen_setVDRLZ	6
+screen.c:343:6:screen_waitMeasurement	1
+screen.c:361:6:screen_errorXY	1

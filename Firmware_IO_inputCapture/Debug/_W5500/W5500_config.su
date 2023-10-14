@@ -1,0 +1,6 @@
+../_W5500/W5500_config.c:11:6:W5500_Select	8	static
+../_W5500/W5500_config.c:15:6:W5500_Unselect	8	static
+../_W5500/W5500_config.c:19:9:W5500_ReadByte	16	static
+../_W5500/W5500_config.c:25:6:W5500_WriteByte	16	static
+../_W5500/W5500_config.c:29:6:W5500_ReadBuff	8	static
+../_W5500/W5500_config.c:32:6:W5500_WriteBuff	8	static

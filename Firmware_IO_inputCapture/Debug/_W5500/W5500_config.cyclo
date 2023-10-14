@@ -1,0 +1,6 @@
+W5500_config.c:11:6:W5500_Select	1
+W5500_config.c:15:6:W5500_Unselect	1
+W5500_config.c:19:9:W5500_ReadByte	1
+W5500_config.c:25:6:W5500_WriteByte	1
+W5500_config.c:29:6:W5500_ReadBuff	1
+W5500_config.c:32:6:W5500_WriteBuff	1

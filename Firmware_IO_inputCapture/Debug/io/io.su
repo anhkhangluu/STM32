@@ -1,0 +1,3 @@
+../io/io.c:9:8:io_getButton	32	static
+../io/io.c:25:6:io_setOutput	40	static
+../io/io.c:47:6:io_setLedStatus	16	static

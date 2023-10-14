@@ -1,0 +1,6 @@
+porttcp.c:51:1:xMBTCPPortInit	3
+porttcp.c:77:6:vMBTCPPortClose	1
+porttcp.c:81:6:vMBTCPPortDisable	1
+porttcp.c:86:1:xMBTCPPortGetRequest	1
+porttcp.c:96:1:xMBTCPPortSendResponse	1
+porttcp.c:105:6:modbus_tcps	9

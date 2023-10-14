@@ -22,7 +22,7 @@
 #include "usbd_cdc_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "flash_boot.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,7 +49,7 @@
   */
 
 /* USER CODE BEGIN PRIVATE_TYPES */
-
+static uint8_t m_write_cfg_flash(uint64_t *cfg);
 /* USER CODE END PRIVATE_TYPES */
 
 /**
@@ -94,7 +94,7 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
-
+uint8_t feedback[] = {0x04, 0x74, 0xA1};
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -109,7 +109,7 @@ uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
-
+extern uint8_t flagReset;
 /* USER CODE END EXPORTED_VARIABLES */
 
 /**
@@ -259,6 +259,14 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
+  if (Buf[0] == 0x05 && Buf[1] == 0x03 && Buf[2] == 0xC0)
+  {
+	  uint64_t cfg_boot = 0xffffffffffffffb0;
+	  m_write_cfg_flash(&cfg_boot);
+	  CDC_Transmit_FS(feedback, 3);
+	  HAL_NVIC_SystemReset();
+  }
+
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
   return (USBD_OK);
@@ -291,7 +299,26 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+static uint8_t m_write_cfg_flash(uint64_t *cfg)
+{
+  uint8_t status = 1;
+  uint32_t page = flash_get_page(CONFIG_START);
 
+  if (FLASH_OK != flash_erase(page, 1))
+  {
+	status = 0;
+  }
+
+  if (status == 1)
+  {
+	if (FLASH_OK != flash_write(CONFIG_START, cfg, 1))
+	{
+	  status = 0;
+	}
+  }
+
+  return status;
+}
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 /**
