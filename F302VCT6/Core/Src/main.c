@@ -43,8 +43,9 @@
 #include "math.h"
 #include "rtc.h"
 #include "flash.h"
-
+#ifdef BOOTLOADER
 #include "flash_boot.h"
+#endif
 //#include "unittest.h"
 /* USER CODE END Includes */
 
@@ -346,70 +347,6 @@ int main(void)
 
 	HAL_TIM_Base_Start(&htim6); //timer using for delay in LCD
 
-#if 0
-	for (int  i = 0;  i < 10; ++ i) {
-
-	dataMeasure _data,__data;
-	_data.coordinates.R = 100;
-	_data.coordinates.X = -100;
-	_data.coordinates.Y = -1000;
-	_data.coordinates.Z = -2000;
-	_data.coordinates.aX = 2000;
-	_data.coordinates.aY = 4000;
-	_data.time.day = 10;
-	_data.time.hour = 20;
-	_data.time.minute = 40;
-	_data.time.month = 9;
-	_data.time.year = 20;
-	_data.mode = 4;
-
-	write_SDCard(_data, MEASUREMENT_1_FILE_NAME);
-
-
-	__data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
-
-	screen_DataMeasureType1(__data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
-	HAL_SPI_DeInit(&hspi2);
-	MX_FATFS_DeInit();
-	HAL_Delay(1000);
-	MX_SPI2_Init();
-	MX_FATFS_Init();
-	dataMeasure ___data,____data;
-	___data.coordinates.R = 100;
-	___data.coordinates.X = -56;
-	___data.coordinates.Y = -14;
-	___data.coordinates.Z = -2000;
-	___data.coordinates.aX = 2000;
-	___data.coordinates.aY = 1200;
-	___data.time.day = 10;
-	___data.time.hour = 21;
-	___data.time.minute = 40;
-	___data.time.month = 9;
-	___data.time.year = 30;
-	___data.mode = 4;
-
-	write_SDCard(___data, MEASUREMENT_1_FILE_NAME);
-
-	HAL_Delay(100);
-	____data = read_SDCard(MEASUREMENT_1_FILE_NAME, 0);
-	screen_DataMeasureType1(____data, CALIBSET, MEASUREMENT_1, NOT_SHOW_HIS);
-	}
-	while(1);
-#endif
-
-#if 0
-
-	int x = -222;
-	char X_str[9];
-
-
-	ftoa(x, X_str);
-
-	while(1)
-	{
-
-	}
-#endif
 	app_Init();
 
   /* USER CODE END 2 */
@@ -839,7 +776,7 @@ static void MX_TIM6_Init(void)
 
   /* USER CODE END TIM6_Init 1 */
   htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 0;
+  htim6.Init.Prescaler = 47;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim6.Init.Period = 65535;
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -907,9 +844,9 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
@@ -2317,6 +2254,7 @@ static void app_HisValue(uint8_t measurementIndex) {
 static void app_Init(void) {
 	LCD_Init();
 	W5500_init(); //if this line error -> check power of ethernet
+
 	LCD_Clear();
 
 	VDRLZ_Input temp;

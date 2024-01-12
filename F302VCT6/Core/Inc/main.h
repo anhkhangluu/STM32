@@ -159,6 +159,7 @@ extern MeasureValue mcalibValue;
 void app_CalculatorValue(CycleMeasure lcycleMeasures, uint8_t mode,uint8_t measurementIndex);
 extern MeasureValue mmeasureValue;
 
+//#define BOOTLOADER
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

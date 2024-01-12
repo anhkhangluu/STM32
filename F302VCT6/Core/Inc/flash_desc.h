@@ -21,12 +21,12 @@ extern "C" {
 //  | APP (98 KB) |       |
 //  |             | IMAGE |
 //  |             |       |
-//  +-------------+-------+ 0x0801 ffff
+//  +-------------+-------+ 0x0803 ffff
 
 // FLASH
 #define FLASH_START ((uint32_t)0x08000000u)
 #undef FLASH_SIZE
-#define FLASH_SIZE  (0x20000u) // 128 * 1024 bytes
+#define FLASH_SIZE  (0x40000u) // 256 * 1024 bytes
 
 // BOOTLOADER
 #define BOOTLOADER_START (FLASH_START) // 0x0800 0000
