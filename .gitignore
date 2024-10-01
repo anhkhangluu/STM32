@@ -50,3 +50,8 @@ release
 *.su
 *.idb
 *.pdb
+F302VCT6_boot.7z
+F302VCT6/.cproject
+F302VCT6/F302VCT6 Debug.launch
+F302VCT6_boot/.cproject
+F302VCT6_boot/F302VCT6_boot Debug.launch
