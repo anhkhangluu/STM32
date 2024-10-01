@@ -4,7 +4,7 @@
 #include "stm32f3xx_hal.h"
 #include "structer.h"
 
-#define MEMORY_ADDR		((uint32_t )0x0801F800)
+#define MEMORY_ADDR		((uint32_t )0x0803F800)
 #define INDEX_DATA_CALIB_1	0U
 #define INDEX_DATA_CALIB_2  20U
 #define INDEX_VDRLZ			40U

@@ -43,9 +43,7 @@
 #include "math.h"
 #include "rtc.h"
 #include "flash.h"
-#ifdef BOOTLOADER
-#include "flash_boot.h"
-#endif
+
 //#include "unittest.h"
 /* USER CODE END Includes */
 
@@ -56,14 +54,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-
-#ifdef BOOTLOADER
-#define VECTOR_TABLE_SIZE (31 + 1 + 7 + 9)        // 31 positive vectors, 0 vector, and 7 negative vectors (and extra 9 i dont know why)
-#define SYSCFG_CFGR1_MEM_MODE__MAIN_FLASH      0  // x0: Main Flash memory mapped at 0x0000 0000
-#define SYSCFG_CFGR1_MEM_MODE__SYSTEM_FLASH    1  // 01: System Flash memory mapped at 0x0000 0000
-#define SYSCFG_CFGR1_MEM_MODE__SRAM            3  // 11: Embedded SRAM mapped at 0x0000 0000
-#endif
 
 //#define CDC_DEBUG
 #define TIME_WAIT 100
@@ -110,11 +100,6 @@ TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-#ifdef BOOTLOADER
-volatile uint32_t __attribute__((section(".ram_vector,\"aw\",%nobits @"))) ram_vector[VECTOR_TABLE_SIZE];
-extern volatile uint32_t g_pfnVectors[VECTOR_TABLE_SIZE];
-#endif
-
 #define false 	0
 #define true 	1
 /*----------------------------DHCP - MODBUS-----------------------------*/
@@ -278,11 +263,6 @@ static int self_atof(char *str)
      return (int)(result * sign * 100);
 }
 
-#ifdef BOOTLOADER
-uint8_t flagReset = false;
-uint8_t flagSendLoop = false;
-uint8_t dataLoop[] = {0x18, 0x04};
-#endif
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -298,16 +278,7 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 	int32_t __time = 0;
-#ifdef BOOTLOADER
-	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;  // early enable to ensure clock is up and running when it comes to usage
 
-	    for (uint32_t i = 0; i < VECTOR_TABLE_SIZE; i++) {//copy vector table
-	      ram_vector[i] = g_pfnVectors[i];
-	    }
-
-	    SYSCFG->CFGR1 = (SYSCFG->CFGR1 & ~SYSCFG_CFGR1_MEM_MODE) | (SYSCFG_CFGR1_MEM_MODE__SRAM * SYSCFG_CFGR1_MEM_MODE_0);  // remap 0x0000000 to RAM
-
-#endif
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -482,7 +453,7 @@ void SystemClock_Config(void)
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_USART2
                               |RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_TIM1;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_SYSCLK;
   PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
   PeriphClkInit.USBClockSelection = RCC_USBCLKSOURCE_PLL;
   PeriphClkInit.Tim1ClockSelection = RCC_TIM1CLK_HCLK;
@@ -882,8 +853,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : W5500_CS_Pin LED3_Pin SD_CS_Pin */
-  GPIO_InitStruct.Pin = W5500_CS_Pin|LED3_Pin|SD_CS_Pin;
+  /*Configure GPIO pins : W5500_CS_Pin SD_CS_Pin */
+  GPIO_InitStruct.Pin = W5500_CS_Pin|SD_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -895,12 +866,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : W5500_RS_Pin LED1_Pin LED2_Pin */
-  GPIO_InitStruct.Pin = W5500_RS_Pin|LED1_Pin|LED2_Pin;
+  /*Configure GPIO pin : W5500_RS_Pin */
+  GPIO_InitStruct.Pin = W5500_RS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(W5500_RS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : OUT0_Pin OUT1_Pin OUT2_Pin PB8
                            PB9 */
@@ -936,6 +907,20 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LED1_Pin LED2_Pin */
+  GPIO_InitStruct.Pin = LED1_Pin|LED2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : LED3_Pin */
+  GPIO_InitStruct.Pin = LED3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED3_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SD_Detect_Pin */
   GPIO_InitStruct.Pin = SD_Detect_Pin;
