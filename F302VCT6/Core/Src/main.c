@@ -267,7 +267,7 @@ static int self_atof(char *str)
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+int32_t resetButtonTimeCount;
 /* USER CODE END 0 */
 
 /**
@@ -277,7 +277,6 @@ static int self_atof(char *str)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	int32_t __time = 0;
 
   /* USER CODE END 1 */
 
@@ -349,63 +348,54 @@ int main(void)
 			app_Measurement(MEASUREMENT_2); //measurement 2
 		}
 
-		if (_ON == mbutton.reset || GET_IN3 == 0) { //reset datacalib
-			__time = 0;
-			app_timerStart();
-			while (io_getButton().reset == _ON)
-				;
-			__time =
-					(overflow - 1) * MAX_PERIOD + __HAL_TIM_GET_COUNTER(&htim1);
-			if (GET_IN3 == 0
-					|| (__time >= TIMER_CLEAR_MEAS_WRONG_POS
-							&& __time < TIMER_RESET_CALIB)) {
-				if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
-					meas1WrongPos = 0;
-					moutput.out2 = _OFF;
-					moutput.out3 = _OFF;
-					io_setOutput(moutput, ucRegCoilsBuf);
-					if (calibStatus_1 == CALIBSET)
-						mledStatus.led1 = _ON;
-					else
-						mledStatus.led1 = _OFF;
-					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-					app_GotoMainScreen(CALIBSET, MEASUREMENT_1,
-							NOT_SHOW_SET_CALIB);
-				} else if (mainScreenFlag == MEASUREMENT_2
-						&& meas2WrongPos == 1) {
-					meas2WrongPos = 0;
-					moutput.out5 = _OFF;
-					moutput.out6 = _OFF;
-					io_setOutput(moutput, ucRegCoilsBuf);
-					if (calibStatus_2 == CALIBSET)
-						mledStatus.led2 = _ON;
-					else
-						mledStatus.led2 = _OFF;
-					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-					app_GotoMainScreen(CALIBSET, MEASUREMENT_2,
-							NOT_SHOW_SET_CALIB);
-				} else {
-
-				}
-
-			} else if (__time >= TIMER_RESET_CALIB /*10sec*/) { //long press button in 10sec
-				MeasureValue vl = { 0, 0, 0, 0, 0 };
-				DBG("Clear DataCalib by RESET button\n");
-				if (mainScreenFlag == MEASUREMENT_1) {
-					FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
+		if (GET_IN3 == 0
+				|| (resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS
+						&& resetButtonTimeCount < TIMER_RESET_CALIB)) {
+			resetButtonTimeCount = 0; //clear
+			if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
+				meas1WrongPos = 0;
+				moutput.out2 = _OFF;
+				moutput.out3 = _OFF;
+				io_setOutput(moutput, ucRegCoilsBuf);
+				if (calibStatus_1 == CALIBSET)
+					mledStatus.led1 = _ON;
+				else
 					mledStatus.led1 = _OFF;
-					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-					calibStatus_1 = CALIBRESET;
-					app_GotoMainScreen(CALIBRESET, MEASUREMENT_1,
-					NOT_SHOW_SET_CALIB);
-				} else {
-					FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
+				io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				app_GotoMainScreen(CALIBSET, MEASUREMENT_1,
+				NOT_SHOW_SET_CALIB);
+			} else if (mainScreenFlag == MEASUREMENT_2 && meas2WrongPos == 1) {
+				meas2WrongPos = 0;
+				moutput.out5 = _OFF;
+				moutput.out6 = _OFF;
+				io_setOutput(moutput, ucRegCoilsBuf);
+				if (calibStatus_2 == CALIBSET)
+					mledStatus.led2 = _ON;
+				else
 					mledStatus.led2 = _OFF;
-					io_setLedStatus(mledStatus, ucRegCoilsBuf);
-					calibStatus_2 = CALIBRESET;
-					app_GotoMainScreen(CALIBRESET, MEASUREMENT_2,
-					NOT_SHOW_SET_CALIB);
-				}
+				io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				app_GotoMainScreen(CALIBSET, MEASUREMENT_2,
+				NOT_SHOW_SET_CALIB);
+			} else {
+			}
+		} else if (resetButtonTimeCount >= TIMER_RESET_CALIB /*10sec*/) { // long press button in 10sec
+			resetButtonTimeCount = 0; //clear
+			MeasureValue vl = { 0, 0, 0, 0, 0 };
+			DBG("Clear DataCalib by RESET button\n");
+			if (mainScreenFlag == MEASUREMENT_1) {
+				FLASH_WriteDataCalib(&vl, MEASUREMENT_1);
+				mledStatus.led1 = _OFF;
+				io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				calibStatus_1 = CALIBRESET;
+				app_GotoMainScreen(CALIBRESET, MEASUREMENT_1,
+				NOT_SHOW_SET_CALIB);
+			} else {
+				FLASH_WriteDataCalib(&vl, MEASUREMENT_2);
+				mledStatus.led2 = _OFF;
+				io_setLedStatus(mledStatus, ucRegCoilsBuf);
+				calibStatus_2 = CALIBRESET;
+				app_GotoMainScreen(CALIBRESET, MEASUREMENT_2,
+				NOT_SHOW_SET_CALIB);
 			}
 		}
 	}
@@ -2113,11 +2103,9 @@ static optionScreen_e_t app_optionMenu(void) {
 static void app_processOptionMenu(optionScreen_e_t optionMenu) {
 	switch (optionMenu) {
 	case measurement1Setting:
-
 		app_GotoMainScreen(calibStatus_1, MEASUREMENT_1, NOT_SHOW_SET_CALIB);
 		break;
 	case measurement2Setting:
-
 		app_GotoMainScreen(calibStatus_2, MEASUREMENT_2, NOT_SHOW_SET_CALIB);
 		break;
 	case measurement1HisList:
@@ -2320,6 +2308,17 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex,
 			menuScreenFlag = 1;
 			exit = 1;
 			break;
+		}
+		if (_ON == mbutton.reset) {
+			resetButtonTimeCount = 0;
+			app_timerStart();
+			while (io_getButton().reset == _ON)
+				;
+			resetButtonTimeCount = (overflow - 1) * MAX_PERIOD
+					+ __HAL_TIM_GET_COUNTER(&htim1);
+			if (resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS) {
+				exit = 1;
+			}
 		}
 
 	}
