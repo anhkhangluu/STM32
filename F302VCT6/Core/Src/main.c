@@ -55,7 +55,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-//#define CDC_DEBUG
 #define TIME_WAIT 100
 
 #define MEASUREMENT_1		1
@@ -268,6 +267,7 @@ static int self_atof(char *str)
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 int32_t resetButtonTimeCount;
+// uint32_t in2Count = 0;
 /* USER CODE END 0 */
 
 /**
@@ -2542,10 +2542,13 @@ static void updateMBRegister(void) {
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == IN2_Pin) {
+		HAL_Delay(100); //delay for debouncing button
+
 		minput.in2 = _ON;
 		__HAL_TIM_SET_COUNTER(&htim1, 0);
 		overflow = 0; // reset
 		previousCapture = __HAL_TIM_GET_COUNTER(&htim1);
+		// in2Count ++;
 	}
 
 	if (GPIO_Pin == SD_Detect_Pin) {
