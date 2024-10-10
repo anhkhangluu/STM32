@@ -2316,14 +2316,14 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex,
 				;
 			resetButtonTimeCount = (overflow - 1) * MAX_PERIOD
 					+ __HAL_TIM_GET_COUNTER(&htim1);
-			if (resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS) {
+			if ((resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS)
+					&& (meas1WrongPos != 0 || meas2WrongPos != 0)) {
 				exit = 1;
 			}
 		}
 
 	}
-	while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1
-			&& _OFF == mbutton.reset && GET_IN3 == 1);
+	while (exit == 0 && _OFF == minput.in0 && _OFF == minput.in1 && GET_IN3 == 1);
 
 }
 
@@ -2542,7 +2542,7 @@ static void updateMBRegister(void) {
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == IN2_Pin) {
-		HAL_Delay(100); //delay for debouncing button
+		HAL_Delay(150); //delay for debouncing button
 
 		minput.in2 = _ON;
 		__HAL_TIM_SET_COUNTER(&htim1, 0);
