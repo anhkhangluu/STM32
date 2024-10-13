@@ -352,6 +352,7 @@ int main(void)
 				|| (resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS
 						&& resetButtonTimeCount < TIMER_RESET_CALIB)) {
 			resetButtonTimeCount = 0; //clear
+			//Quit screen sensor error alert
 			if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
 				meas1WrongPos = 0;
 				moutput.out2 = _OFF;
@@ -378,7 +379,7 @@ int main(void)
 				NOT_SHOW_SET_CALIB);
 			} else {
 			}
-		} else if (resetButtonTimeCount >= TIMER_RESET_CALIB /*10sec*/) { // long press button in 10sec
+		} else if (resetButtonTimeCount >= TIMER_RESET_CALIB /*10sec*/) { // long press button in 10sec, clear calib value
 			resetButtonTimeCount = 0; //clear
 			MeasureValue vl = { 0, 0, 0, 0, 0 };
 			DBG("Clear DataCalib by RESET button\n");
@@ -469,7 +470,11 @@ static void MX_RTC_Init(void)
   RTC_DateTypeDef sDate = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
-
+if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) == 0xBEBE)
+{
+	// RTC is already config
+	return;
+}
   /* USER CODE END RTC_Init 1 */
 
   /** Initialize RTC Only
@@ -487,7 +492,13 @@ static void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-
+  if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) != 0xBEBE)
+  {
+	  HAL_PWR_EnableBkUpAccess();
+	  // Writes a data in a RTC Backup data Register 1
+	  HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xBEBE);
+	  HAL_PWR_DisableBkUpAccess();
+  }
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date
