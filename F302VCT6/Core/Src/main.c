@@ -493,6 +493,11 @@ static void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
+  if(HAL_RTC_WaitForSynchro(&hrtc) != HAL_OK)
+  {
+	  Error_Handler();
+  }
+
   if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) != 0xBEBE)
   {
 	  HAL_PWR_EnableBkUpAccess();
@@ -502,6 +507,7 @@ static void MX_RTC_Init(void)
   }
   else
   {
+	  //Don't setting date & time
 	  return;
   }
   /* USER CODE END Check_RTC_BKUP */
