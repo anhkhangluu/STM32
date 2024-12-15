@@ -348,9 +348,9 @@ int main(void)
 			app_Measurement(MEASUREMENT_2); //measurement 2
 		}
 
-		if (GET_IN3 == 0
-				|| (resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS
-						&& resetButtonTimeCount < TIMER_RESET_CALIB)) {
+		if (GET_IN3 == 0 ||
+		   (resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS &&
+		    resetButtonTimeCount < TIMER_RESET_CALIB)) {
 			resetButtonTimeCount = 0; //clear
 			//Quit screen sensor error alert
 			if (mainScreenFlag == MEASUREMENT_1 && meas1WrongPos == 1) {
@@ -2334,13 +2334,23 @@ static void app_GotoMainScreen(uint8_t option, uint8_t measurementIndex,
 		if (_ON == mbutton.reset) {
 			resetButtonTimeCount = 0;
 			app_timerStart();
-			while (io_getButton().reset == _ON)
-				;
-			resetButtonTimeCount = (overflow - 1) * MAX_PERIOD
-					+ __HAL_TIM_GET_COUNTER(&htim1);
-			if ((resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS)
-					&& (meas1WrongPos != 0 || meas2WrongPos != 0)) {
+			while (io_getButton().reset == _ON && resetButtonTimeCount < TIMER_RESET_CALIB)
+			{
+				resetButtonTimeCount = (overflow - 1) * MAX_PERIOD + __HAL_TIM_GET_COUNTER(&htim1);
+			}
+				
+			if (resetButtonTimeCount >= TIMER_RESET_CALIB){
+				// hold reset button more than 10sec => reset calib value
 				exit = 1;
+				break;
+			}
+			else if (resetButtonTimeCount >= TIMER_CLEAR_MEAS_WRONG_POS){
+				// hold reset button more than 2sec
+				if (meas1WrongPos != 0 || meas2WrongPos != 0) {
+					//error existed?
+					exit = 1;
+					break;
+				}
 			}
 		}
 
