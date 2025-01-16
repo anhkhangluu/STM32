@@ -500,16 +500,6 @@ static void MX_RTC_Init(void)
 
   if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) != 0xBEBE)
   {
-	  HAL_PWR_EnableBkUpAccess();
-	  // Writes a data in a RTC Backup data Register 1
-	  HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xBEBE);
-	  HAL_PWR_DisableBkUpAccess();
-  }
-  else
-  {
-	  //Don't setting date & time
-	  return;
-  }
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date
@@ -533,7 +523,8 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
-
+  HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xBEBE);
+  }
   /* USER CODE END RTC_Init 2 */
 
 }
