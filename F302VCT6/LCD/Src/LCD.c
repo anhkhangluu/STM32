@@ -26,7 +26,7 @@ static LCD_Options_t LCD_Opts;
 #define LCD_RS_HIGH             HAL_GPIO_WritePin(_LCD_RS_PORT, _LCD_RS_PIN,GPIO_PIN_SET)
 #define LCD_E_LOW               HAL_GPIO_WritePin(_LCD_E_PORT,  _LCD_E_PIN,GPIO_PIN_RESET)
 #define LCD_E_HIGH              HAL_GPIO_WritePin(_LCD_E_PORT,  _LCD_E_PIN,GPIO_PIN_SET)
-#define LCD_E_BLINK             LCD_E_HIGH; LCD_Delay_us(50); LCD_E_LOW; LCD_Delay_us(50)
+#define LCD_E_BLINK             LCD_E_HIGH; LCD_Delay_us(80); LCD_E_LOW; LCD_Delay_us(80)
 //############################################################################################
 /* Commands*/
 #define LCD_CLEARDISPLAY        0x01
