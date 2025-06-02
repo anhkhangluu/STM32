@@ -162,27 +162,27 @@ void screen_setDateTime(Time time, CycleTime cycle) {
 				time.hour, time.minute);
 		break;
 	case SET_MONTH:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d /[%02d]/ %02d",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, " 20%02d /[%02d]/ %02d",
 				time.year, time.month, time.day);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d : %02d",
 				time.hour, time.minute);
 		break;
 	case SET_DAY:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d / %02d /[%02d]",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, " 20%02d / %02d /[%02d]",
 				time.year, time.month, time.day);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   %02d : %02d",
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d : %02d",
 				time.hour, time.minute);
 		break;
 	case SET_HOUR:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d / %02d / %02d",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, " 20%02d / %02d / %02d",
 				time.year, time.month, time.day);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   [%02d]: %02d",
 				time.hour, time.minute);
 		break;
 	case SET_MINUTE:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "20%02d / %02d / %02d",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, " 20%02d / %02d / %02d",
 				time.year, time.month, time.day);
-		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "   %02d :[%02d]",
+		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "    %02d :[%02d]",
 				time.hour, time.minute);
 		break;
 	}
@@ -267,28 +267,28 @@ void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
 
 	switch (cycle) {
 	case V_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=[%02lu]  D= %02lu",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V=[%02lu]   D= %02lu",
 				VDRLZ.V, VDRLZ.D);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L= %02lu", VDRLZ.L);
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-				"R= %01lu.%01lu  Z= %01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
+				"R= %01lu.%01lu   Z= %01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
 		break;
 	case D_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu  D=[%02lu]",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu    D=[%02lu]",
 				VDRLZ.V, VDRLZ.D);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L= %02lu", VDRLZ.L);
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-				"R= %01lu.%01lu  Z= %01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
+				"R= %01lu.%01lu   Z= %01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
 		break;
 	case L_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu  D= %02lu",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu    D= %02lu",
 				VDRLZ.V, VDRLZ.D);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L=[%02lu]", VDRLZ.L);
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-				"R= %01lu.%01lu  Z= %01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
+				"R= %01lu.%01lu   Z= %01lu.%01lu", R / 10, R % 10, Z / 10, Z % 10);
 		break;
 	case R_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu  D= %02lu",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu    D= %02lu",
 				VDRLZ.V, VDRLZ.D);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L= %02lu", VDRLZ.L);
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
@@ -296,11 +296,11 @@ void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle) {
 				Z % 10);
 		break;
 	case Z_set:
-		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu  D= %02lu",
+		snprintf(screenBuffer.line2, LCD_LINE_SIZE + 1, "V= %02lu    D= %02lu",
 				VDRLZ.V, VDRLZ.D);
 		snprintf(screenBuffer.line3, LCD_LINE_SIZE + 1, "L= %02lu", VDRLZ.L);
 		snprintf(screenBuffer.line4, LCD_LINE_SIZE + 1,
-				"R= %01lu.%01lu  Z=[%01lu.%01lu]", R / 10, R % 10, Z / 10,
+				"R= %01lu.%01lu   Z=[%01lu.%01lu]", R / 10, R % 10, Z / 10,
 				Z % 10);
 		break;
 	default:
