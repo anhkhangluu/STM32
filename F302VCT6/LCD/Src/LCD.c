@@ -1,26 +1,26 @@
 
 #include "LCD.h"
 
-
-//############################################################################################
-typedef struct {
+// ############################################################################################
+typedef struct
+{
 	uint8_t DisplayControl;
 	uint8_t DisplayFunction;
 	uint8_t DisplayMode;
 	uint8_t currentX;
 	uint8_t currentY;
-  
+
 } LCD_Options_t;
-//############################################################################################
+// ############################################################################################
 /* Private functions */
 static void LCD_Cmd(uint8_t cmd);
 static void LCD_Cmd4bit(uint8_t cmd);
 static void LCD_Data(uint8_t data);
 static void LCD_CursorSet(uint8_t col, uint8_t row);
-//############################################################################################
+// ############################################################################################
 /* Private variable */
 static LCD_Options_t LCD_Opts;
-//############################################################################################
+// ############################################################################################
 /* Pin definitions */
 #define LCD_RS_LOW              HAL_GPIO_WritePin(_LCD_RS_PORT, _LCD_RS_PIN,GPIO_PIN_RESET)
 #define LCD_RS_HIGH             HAL_GPIO_WritePin(_LCD_RS_PORT, _LCD_RS_PIN,GPIO_PIN_SET)
@@ -65,20 +65,20 @@ void  LCD_Delay_us(uint16_t  us)
 	while (__HAL_TIM_GET_COUNTER(&htim6) < us)
 		;
 }
-//############################################################################################
-void  LCD_Delay_ms(uint8_t  ms)
+// ############################################################################################
+void LCD_Delay_ms(uint8_t ms)
 {
-  #if _LCD_USE_FREERTOS==1
-  osDelay(ms);
-  #else
-  HAL_Delay(ms);
-  #endif  
+#if _LCD_USE_FREERTOS == 1
+	osDelay(ms);
+#else
+	HAL_Delay(ms);
+#endif
 }
-//############################################################################################
+// ############################################################################################
 void LCD_Init(void)
-{	
-	while(HAL_GetTick()<200)
-    LCD_Delay_ms(1);
+{
+	while (HAL_GetTick() < 200)
+		LCD_Delay_ms(1);
 	/* Set cursor pointer to beginning for LCD */
 	LCD_Opts.currentX = 0;
 	LCD_Opts.currentY = 0;
@@ -107,131 +107,133 @@ void LCD_Init(void)
 	LCD_Opts.DisplayMode = LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT;
 	LCD_Cmd(LCD_ENTRYMODESET | LCD_Opts.DisplayMode);
 	LCD_Delay_ms(5);
-	//setCursor2Home
+	// setCursor2Home
 }
-//############################################################################################
+// ############################################################################################
 void LCD_Clear(void)
 {
 	LCD_Cmd(LCD_CLEARDISPLAY);
 	LCD_Delay_ms(5);
 }
-//############################################################################################
-void LCD_Puts(uint8_t x, uint8_t y, char* str)
+// ############################################################################################
+void LCD_Puts(uint8_t x, uint8_t y, char *str)
 {
 	LCD_CursorSet(x, y);
 	while (*str)
-  {
+	{
 		if (LCD_Opts.currentX >= _LCD_COLS)
-    {
+		{
 			LCD_Opts.currentX = 0;
 			LCD_Opts.currentY++;
 			LCD_CursorSet(LCD_Opts.currentX, LCD_Opts.currentY);
 		}
 		if (*str == '\n')
-    {
+		{
 			LCD_Opts.currentY++;
 			LCD_CursorSet(LCD_Opts.currentX, LCD_Opts.currentY);
 		}
-    else if (*str == '\r')
-    {
+		else if (*str == '\r')
+		{
 			LCD_CursorSet(0, LCD_Opts.currentY);
 		}
-    else
-    {
+		else
+		{
 			LCD_Data(*str);
 			LCD_Opts.currentX++;
 		}
 		str++;
 	}
 }
-//############################################################################################
+// ############################################################################################
 void LCD_DisplayOn(void)
 {
 	LCD_Opts.DisplayControl |= LCD_DISPLAYON;
 	LCD_Cmd(LCD_DISPLAYCONTROL | LCD_Opts.DisplayControl);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_DisplayOff(void)
 {
 	LCD_Opts.DisplayControl &= ~LCD_DISPLAYON;
 	LCD_Cmd(LCD_DISPLAYCONTROL | LCD_Opts.DisplayControl);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_BlinkOn(void)
 {
 	LCD_Opts.DisplayControl |= LCD_BLINKON;
 	LCD_Cmd(LCD_DISPLAYCONTROL | LCD_Opts.DisplayControl);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_BlinkOff(void)
 {
 	LCD_Opts.DisplayControl &= ~LCD_BLINKON;
 	LCD_Cmd(LCD_DISPLAYCONTROL | LCD_Opts.DisplayControl);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_CursorOn(void)
 {
 	LCD_Opts.DisplayControl |= LCD_CURSORON;
 	LCD_Cmd(LCD_DISPLAYCONTROL | LCD_Opts.DisplayControl);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_CursorOff(void)
 {
 	LCD_Opts.DisplayControl &= ~LCD_CURSORON;
 	LCD_Cmd(LCD_DISPLAYCONTROL | LCD_Opts.DisplayControl);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_ScrollLeft(void)
 {
 	LCD_Cmd(LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVELEFT);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_ScrollRight(void)
 {
 	LCD_Cmd(LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVERIGHT);
 }
-//############################################################################################
+// ############################################################################################
 void LCD_CreateChar(uint8_t location, uint8_t *data)
 {
 	uint8_t i;
 	/* We have 8 locations available for custom characters */
 	location &= 0x07;
 	LCD_Cmd(LCD_SETCGRAMADDR | (location << 3));
-	
-	for (i = 0; i < 8; i++) {
+
+	for (i = 0; i < 8; i++)
+	{
 		LCD_Data(data[i]);
 	}
 }
-//############################################################################################
+// ############################################################################################
 void LCD_PutCustom(uint8_t x, uint8_t y, uint8_t location)
 {
 	LCD_CursorSet(x, y);
 	LCD_Data(location);
 }
-//############################################################################################
+// ############################################################################################
 static void LCD_Cmd(uint8_t cmd)
 {
 	LCD_RS_LOW;
 	LCD_Cmd4bit(cmd >> 4);
 	LCD_Cmd4bit(cmd & 0x0F);
 }
-//############################################################################################
+// ############################################################################################
 static void LCD_Data(uint8_t data)
 {
 	LCD_RS_HIGH;
 	LCD_Cmd4bit(data >> 4);
 	LCD_Cmd4bit(data & 0x0F);
 }
-//############################################################################################
+// ############################################################################################
 static void LCD_Cmd4bit(uint8_t cmd)
 {
-	HAL_GPIO_WritePin(_LCD_D7_PORT, _LCD_D7_PIN, (GPIO_PinState)(cmd & 0x08));
-	HAL_GPIO_WritePin(_LCD_D6_PORT, _LCD_D6_PIN, (GPIO_PinState)(cmd & 0x04));
-	HAL_GPIO_WritePin(_LCD_D5_PORT, _LCD_D5_PIN, (GPIO_PinState)(cmd & 0x02));
-	HAL_GPIO_WritePin(_LCD_D4_PORT, _LCD_D4_PIN, (GPIO_PinState)(cmd & 0x01));
+	HAL_GPIO_WritePin(_LCD_D7_PORT, _LCD_D7_PIN, (GPIO_PinState)((cmd >> 3) & 0x01)); // Bit 3 → D7
+	HAL_GPIO_WritePin(_LCD_D6_PORT, _LCD_D6_PIN, (GPIO_PinState)((cmd >> 2) & 0x01)); // Bit 2 → D6
+	HAL_GPIO_WritePin(_LCD_D5_PORT, _LCD_D5_PIN, (GPIO_PinState)((cmd >> 1) & 0x01)); // Bit 1 → D5
+	HAL_GPIO_WritePin(_LCD_D4_PORT, _LCD_D4_PIN, (GPIO_PinState)((cmd >> 0) & 0x01)); // Bit 0 → D4
 	LCD_E_BLINK;
 }
-//############################################################################################
+
+// ############################################################################################
 static void LCD_CursorSet(uint8_t col, uint8_t row)
 {
 	const uint8_t row_offsets[] = {0x00, 0x40, 0x10, 0x50};
@@ -241,9 +243,9 @@ static void LCD_CursorSet(uint8_t col, uint8_t row)
 	LCD_Opts.currentY = row;
 	LCD_Cmd(LCD_SETDDRAMADDR | (col + row_offsets[row]));
 }
-//############################################################################################
+// ############################################################################################
 void LCD_Put(uint8_t Data)
 {
-	LCD_Data(Data);	
+	LCD_Data(Data);
 }
-//############################################################################################
+// ############################################################################################
