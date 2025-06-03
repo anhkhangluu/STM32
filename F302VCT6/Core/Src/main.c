@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "LCD.h"
+#include "lcd.h"
 
 #include "fatfs_sd.h"
 

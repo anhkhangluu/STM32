@@ -5,7 +5,7 @@
  *      Author: Admin
  */
 #include "stdio.h"
-#include "LCD.h"
+#include "lcd.h"
 #include "screen.h"
 #include "stdlib.h"
 #ifdef CDC_DEBUG

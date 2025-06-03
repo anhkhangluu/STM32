@@ -1,32 +1,49 @@
+#ifndef INC_LCD_CONFIG_H_
+#define INC_LCD_CONFIG_H_
 
-#ifndef LCD_CONFIG_H
-#define LCD_CONFIG_H 
+// Choose a microcontroller family
+//#define STM32F0
+//#define STM32F1
+#define STM32F3
+//#define STM32F4
+//#define STM32F7
 
-#include "main.h"
 
+/* CONFIG FOR LIBRARY USER */
 #define _LCD_COLS         16
 #define _LCD_ROWS         4
 
-#define _LCD_RS_PORT      GPIOE
-#define _LCD_RS_PIN       GPIO_PIN_5
 
-#define _LCD_E_PORT       GPIOE
-#define _LCD_E_PIN        GPIO_PIN_2
+//4 pin mode -> pins
+#define DATA5_Port  GPIOE
+#define DATA5_Pin   GPIO_PIN_1
 
-#define _LCD_RW_PORT      GPIOE
-#define _LCD_RW_PIN       GPIO_PIN_4
+#define DATA6_Port  GPIOE
+#define DATA6_Pin   GPIO_PIN_0
 
-#define _LCD_D4_PORT      GPIOE
-#define _LCD_D4_PIN		  GPIO_PIN_1
+#define DATA7_Port  GPIOB
+#define DATA7_Pin   GPIO_PIN_9
 
-#define _LCD_D5_PORT      GPIOE
-#define _LCD_D5_PIN       GPIO_PIN_0
+#define DATA8_Port  GPIOB
+#define DATA8_Pin   GPIO_PIN_8
 
-#define _LCD_D6_PORT      GPIOB
-#define _LCD_D6_PIN       GPIO_PIN_9
+#define RS_Port     GPIOE
+#define RS_Pin      GPIO_PIN_5
 
-#define _LCD_D7_PORT      GPIOB
-#define _LCD_D7_PIN       GPIO_PIN_8
+#define E_Port      GPIOE
+#define E_Pin       GPIO_PIN_2
 
-#endif
+//RW Pin not used,connect to GND
 
+//if you want to work with 8 bit mode uncomment the area which is given below
+
+/*
+#define LCD8Bit
+#define DATA1_Pin GPIO_PIN_1
+#define DATA2_Pin GPIO_PIN_2
+#define DATA3_Pin GPIO_PIN_3
+#define DATA4_Pin GPIO_PIN_4
+*/
+
+
+#endif /* INC_LCD_CONFIG_H_ */
