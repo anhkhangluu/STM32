@@ -14,11 +14,11 @@ char display_settings;
 static void fallingEdge(void)
 {
     HAL_GPIO_WritePin(E_Port, E_Pin, GPIO_PIN_RESET);
-    HAL_Delay(1);
+    HAL_Delay(5);
     HAL_GPIO_WritePin(E_Port, E_Pin, GPIO_PIN_SET);
-    HAL_Delay(1);
+    HAL_Delay(5);
     HAL_GPIO_WritePin(E_Port, E_Pin, GPIO_PIN_RESET);
-    HAL_Delay(1);
+    HAL_Delay(5);
 }
 
 #ifndef LCD8Bit
