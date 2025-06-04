@@ -14,7 +14,9 @@ char display_settings;
 static void fallingEdge(void)
 {
     HAL_GPIO_WritePin(E_Port, E_Pin, GPIO_PIN_RESET);
+    HAL_Delay(1);
     HAL_GPIO_WritePin(E_Port, E_Pin, GPIO_PIN_SET);
+    HAL_Delay(1);
     HAL_GPIO_WritePin(E_Port, E_Pin, GPIO_PIN_RESET);
     HAL_Delay(1);
 }
@@ -56,7 +58,7 @@ static void sendCommand(char cmd)
 	#else
 	    HAL_GPIO_WritePin(RS_Port, RS_Pin, GPIO_PIN_RESET);
 		send4Bits(cmd >> 4);
-		send4Bits(cmd);
+		send4Bits(cmd & 0x0F);
 	#endif
 }
 
@@ -68,7 +70,7 @@ static void sendData(char data)
 	#else
 	    HAL_GPIO_WritePin(RS_Port, RS_Pin, GPIO_PIN_SET);
 		send4Bits(data >> 4);
-		send4Bits(data);
+		send4Bits(data & 0x0F);
 	#endif
 }
 

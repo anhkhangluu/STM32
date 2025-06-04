@@ -5,6 +5,7 @@
  *      Author: Admin
  */
 #include "stdio.h"
+#include "stdint.h"
 #include "lcd.h"
 #include "screen.h"
 #include "stdlib.h"
@@ -24,7 +25,7 @@
 		int __len = snprintf(__temp_buffer, sizeof(__temp_buffer), format, ##__VA_ARGS__);            \
 		if (__len > _LCD_COLS)                                                                        \
 		{                                                                                             \
-			snprintf(dst, _LCD_COLS + 1, "LCD SIZE ERROR!"); /* Fallback string, null-terminated */ \
+			snprintf(dst, _LCD_COLS + 1, "LCD SIZE ERROR"); /* Fallback string, null-terminated */   \
 		}                                                                                             \
 		else                                                                                          \
 		{                                                                                             \
@@ -409,6 +410,15 @@ void screen_errorXY(uint8_t measIndex)
 {
 	screenData screenBuffer;
 	Time __time = rtc_Now();
+	if (__time.year > 99 || __time.month > 12 || __time.day > 31 || __time.hour > 23 || __time.minute > 59)
+	{
+		__time.year = 11;
+		__time.month = 1;
+		__time.day = 1;
+		__time.hour = 11;
+		__time.minute = 11;
+	}
+
 	LCD_Clear();
 	LCD_SNPRINTF(screenBuffer.line1, "MEASUREMENT %01d",
 				 measIndex);
