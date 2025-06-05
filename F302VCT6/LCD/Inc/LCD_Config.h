@@ -33,7 +33,8 @@
 #define E_Port      GPIOE
 #define E_Pin       GPIO_PIN_2
 
-//RW Pin not used,connect to GND
+#define RW_Port     GPIOE
+#define RW_Pin      GPIO_PIN_4
 
 //if you want to work with 8 bit mode uncomment the area which is given below
 
