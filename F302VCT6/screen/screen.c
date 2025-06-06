@@ -37,7 +37,6 @@ static dataMeasure capData(dataMeasure input, uint8_t isShowAB);
 void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 							 uint8_t measIndex, uint8_t showHisFlag)
 {
-	LCD_Clear();
 	screenData screenBuffer;
 
 	if (!showHisFlag)
@@ -113,6 +112,7 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 		LCD_SNPRINTF(screenBuffer.line4, "Z=.....  R=.....");
 	}
 
+	LCD_Clear();
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
@@ -122,7 +122,6 @@ void screen_DataMeasureType1(dataMeasure data, uint8_t setCalib,
 void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 							 uint8_t measIndex, uint8_t showHisFlag)
 {
-	LCD_Clear();
 	static screenData screenBuffer;
 	if (!showHisFlag)
 		LCD_SNPRINTF(screenBuffer.line1, "MEASUREMENT %01d",
@@ -139,14 +138,12 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 		if (MEASUREALL == data.mode || data.mode == ZERROR2)
 		{
 			data = capData(data, SHOW_AB_FLAG);
-			LCD_SNPRINTF(screenBuffer.line3, "   A=%s%2d.%01d",
+			LCD_SNPRINTF(screenBuffer.line3, "   A=%s%2d.%01d\xDF",
 						 (data.coordinates.aX >= 0) ? "+" : "-",
 						 (int16_t)(abs(data.coordinates.aX) / 10), abs(data.coordinates.aX) % 10);
-			LCD_SNPRINTF(screenBuffer.line4, "   B=%s%2d.%01d",
+			LCD_SNPRINTF(screenBuffer.line4, "   B=%s%2d.%01d\xDF",
 						 (data.coordinates.aY >= 0) ? "+" : "-",
 						 (int16_t)(abs(data.coordinates.aY) / 10), abs(data.coordinates.aY) % 10);
-			screenBuffer.line3[10] = 0xDF;
-			screenBuffer.line4[10] = 0xDF;
 		}
 		else if (ZERROR1 == data.mode || data.mode == ZONLY)
 		{
@@ -170,29 +167,16 @@ void screen_DataMeasureType2(dataMeasure data, uint8_t setCalib,
 		LCD_SNPRINTF(screenBuffer.line3, "    A=.....");
 		LCD_SNPRINTF(screenBuffer.line4, "    B=.....");
 	}
+
+	LCD_Clear();
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 	LCD_Puts(0, 3, screenBuffer.line4);
 }
 
-void screen_Time(Time time)
-{
-	screenData screenBuffer;
-	LCD_SNPRINTF(screenBuffer.line2, "  20%02d/%02d/%02d",
-				 time.year, time.month, time.day);
-	LCD_SNPRINTF(screenBuffer.line3, "    %02d:%02d", time.hour,
-				 time.minute);
-
-	LCD_Puts(0, 0, "  TIME SETTING");
-	LCD_Puts(0, 1, screenBuffer.line2);
-	LCD_Puts(0, 2, screenBuffer.line3);
-	LCD_Puts(0, 3, " ");
-}
-
 void screen_setDateTime(Time time, CycleTime cycle)
 {
-	LCD_Clear();
 	screenData screenBuffer;
 	switch (cycle)
 	{
@@ -227,10 +211,11 @@ void screen_setDateTime(Time time, CycleTime cycle)
 					 time.hour, time.minute);
 		break;
 	}
+
+	LCD_Clear();
 	LCD_Puts(0, 0, "  TIME SETTING  ");
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
-	LCD_Puts(0, 3, " ");
 }
 
 void screen_OptionMenu(optionScreen_e_t *optionIndex)
@@ -284,10 +269,8 @@ void screen_OptionMenu(optionScreen_e_t *optionIndex)
 	}
 
 	LCD_Clear();
-	LCD_Puts(0, 0, " ");
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
-	LCD_Puts(0, 3, " ");
 }
 
 void screen_showIP(wiz_NetInfo *netInfo)
@@ -296,11 +279,10 @@ void screen_showIP(wiz_NetInfo *netInfo)
 	LCD_SNPRINTF(screenBuffer.line1, "IP ADDRESS");
 	LCD_SNPRINTF(screenBuffer.line2, "%03d.%03d.%02d.%02d",
 				 netInfo->ip[0], netInfo->ip[1], netInfo->ip[2], netInfo->ip[3]);
+
 	LCD_Clear();
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
-	LCD_Puts(0, 2, " ");
-	LCD_Puts(0, 3, " ");
 }
 
 void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle)
@@ -351,8 +333,8 @@ void screen_setVDRLZ(VDRLZ_Input VDRLZ, VDRLZ_CycleSet cycle)
 	default:
 		break;
 	}
+
 	LCD_Clear();
-	LCD_Puts(0, 0, " ");
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
 	LCD_Puts(0, 3, screenBuffer.line4);
@@ -391,7 +373,7 @@ void screen_waitMeasurement(uint8_t measIndex)
 {
 	screenData screenBuffer;
 	Time __time = rtc_Now();
-	LCD_Clear();
+
 	LCD_SNPRINTF(screenBuffer.line1, "MEASUREMENT %01d",
 				 measIndex);
 	LCD_SNPRINTF(screenBuffer.line2,
@@ -399,6 +381,8 @@ void screen_waitMeasurement(uint8_t measIndex)
 				 __time.day, __time.hour, __time.minute);
 	LCD_SNPRINTF(screenBuffer.line3, "X=.....  Y=.....");
 	LCD_SNPRINTF(screenBuffer.line4, "Z=.....  R=.....");
+
+	LCD_Clear();
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);
@@ -409,7 +393,7 @@ void screen_errorXY(uint8_t measIndex)
 {
 	screenData screenBuffer;
 	Time __time = rtc_Now();
-	LCD_Clear();
+
 	LCD_SNPRINTF(screenBuffer.line1, "MEASUREMENT %01d",
 				 measIndex);
 	LCD_SNPRINTF(screenBuffer.line2,
@@ -417,6 +401,8 @@ void screen_errorXY(uint8_t measIndex)
 				 __time.hour, __time.minute);
 	LCD_SNPRINTF(screenBuffer.line3, "   SENSOR X/Y");
 	LCD_SNPRINTF(screenBuffer.line4, "     ERROR!");
+
+	LCD_Clear();
 	LCD_Puts(0, 0, screenBuffer.line1);
 	LCD_Puts(0, 1, screenBuffer.line2);
 	LCD_Puts(0, 2, screenBuffer.line3);

@@ -317,6 +317,8 @@ int main(void)
 
 	HAL_TIM_Base_Start(&htim6); //timer using for delay in LCD
 
+	LCD_Init();
+//	W5500_init(); //if this line error -> check power of ethernet
 	app_Init();
 
   /* USER CODE END 2 */
@@ -329,7 +331,21 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+#if 0 //test lcd
+		LCD_Puts(0, 0, "1234567891234567");
+		LCD_Puts(0, 1, "1234567891234567");
+		LCD_Puts(0, 2, "1234567891234567");
+		LCD_Puts(0, 3, "1234567891234567");
+		HAL_Delay(1000);
+		LCD_Clear();
 
+		LCD_Puts(0, 0, "0000000000000000");
+		LCD_Puts(0, 1, "0000000000000000");
+		LCD_Puts(0, 2, "0000000000000000");
+		LCD_Puts(0, 3, "1234567891234567");
+		HAL_Delay(1000);
+		LCD_Clear();
+#else
 		minput = io_getInput();
 		mbutton = io_getButton();
 
@@ -399,6 +415,7 @@ int main(void)
 				NOT_SHOW_SET_CALIB);
 			}
 		}
+#endif
 	}
   /* USER CODE END 3 */
 }
@@ -2238,11 +2255,6 @@ static void app_HisValue(uint8_t measurementIndex) {
 }
 
 static void app_Init(void) {
-	LCD_Init();
-	W5500_init(); //if this line error -> check power of ethernet
-
-	LCD_Clear();
-
 	VDRLZ_Input temp;
 	temp = FLASH_ReadVDRLZ();
 	if (temp.D == 0xFFFFFFFF && temp.L == 0xFFFFFFFF && isnanf(temp.R)
